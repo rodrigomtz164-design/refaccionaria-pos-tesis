@@ -1,0 +1,206 @@
+{% extends 'sistema/base.html' %}
+
+{% block title %}Catálogo de Productos - Refaccionaria Los Paddys{% endblock %}
+
+{% block content %}
+<div class="row mb-3 align-items-center">
+    <div class="col-md-6">
+        <h2 class="fw-bold"><i class="fa-solid fa-boxes-stacked text-primary me-2"></i>Catálogo de Refacciones</h2>
+        <p class="text-muted mb-0">Listado general e inventario de Refaccionaria Los Paddys</p>
+    </div>
+</div>
+
+<!-- Barra de Filtros Rápidos -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body bg-white rounded">
+        <form method="get" class="row g-3" id="filterForm">
+            <div class="col-md-4 position-relative" id="busquedaContainer">
+                <label for="q" class="form-label font-weight-bold">Búsqueda rápida</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                    <input type="text" name="q" id="q" class="form-control" placeholder="Buscar por SKU o nombre..." value="{{ query }}" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <label for="categoria" class="form-label font-weight-bold">Categoría</label>
+                <select name="categoria" id="categoria" class="form-select">
+                    <option value="">Todas las categorías</option>
+                    {% for cat in categorias %}
+                        <option value="{{ cat.id }}" {% if categoria_id == cat.id|stringformat:"s" %}selected{% endif %}>
+                            {{ cat.nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label for="marca" class="form-label font-weight-bold">Marca de Auto</label>
+                <select name="marca" id="marca" class="form-select">
+                    <option value="">Todas las marcas</option>
+                    {% for m in marcas %}
+                        <option value="{{ m.id }}" {% if marca_id == m.id|stringformat:"s" %}selected{% endif %}>
+                            {{ m.nombre }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100 fw-bold">
+                    <i class="fa-solid fa-filter me-1"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabla General de Productos -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>SKU</th>
+                        <th>Producto</th>
+                        <th>Categoría</th>
+                        <th>Compatibilidad</th>
+                        <th>Precio Venta</th>
+                        <th>Stock</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for producto in productos %}
+                    <tr>
+                        <td class="fw-bold">{{ producto.sku|default:"SIN SKU" }}</td>
+                        <td>
+                            <div class="fw-bold">{{ producto.nombre }}</div>
+                            <small class="text-muted">{{ producto.descripcion|truncatechars:40|default:"" }}</small>
+                        </td>
+                        <td><span class="badge bg-info text-dark">{{ producto.categoria.nombre }}</span></td>
+                        <td>
+                            {% for app in producto.aplicaciones.all %}
+                                <span class="badge bg-secondary mb-1">
+                                    {{ app.marca.nombre }} {{ app.nombre }} ({{ app.anio_inicio }}-{{ app.anio_fin }})
+                                </span>
+                            {% empty %}
+                                <span class="text-muted small">Universal / Sin asignar</span>
+                            {% endfor %}
+                        </td>
+                        <td class="fw-bold text-success">${{ producto.precio_venta }}</td>
+                        <td>
+                            {% if producto.stock_actual <= producto.stock_minimo %}
+                                <span class="badge bg-danger">{{ producto.stock_actual }} {{ producto.unidad_medida }} (Bajo)</span>
+                            {% else %}
+                                <span class="badge bg-success">{{ producto.stock_actual }} {{ producto.unidad_medida }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if producto.es_granel %}
+                                <span class="badge bg-warning text-dark"><i class="fa-solid fa-fill-drip"></i> Granel</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark border">Pieza</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="fa-solid fa-box-open fa-2x mb-2 d-block"></i>
+                            No se encontraron productos con los filtros seleccionados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript para Autocompletado Tipo Google e Interactivo -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const inputBusqueda = document.getElementById('q');
+    const busquedaContainer = document.getElementById('busquedaContainer');
+    const form = document.getElementById('filterForm');
+
+    if (!inputBusqueda || !busquedaContainer) return;
+
+    // Crear el menú desplegable tipo Google
+    const sugerenciasDiv = document.createElement('div');
+    sugerenciasDiv.className = 'list-group position-absolute w-100 shadow-lg bg-white border rounded-bottom';
+    sugerenciasDiv.style.zIndex = '9999';
+    sugerenciasDiv.style.top = '100%';
+    sugerenciasDiv.style.left = '0';
+    sugerenciasDiv.style.maxHeight = '280px';
+    sugerenciasDiv.style.overflowY = 'auto';
+    busquedaContainer.appendChild(sugerenciasDiv);
+
+    // Extraer datos de la tabla visible
+    const productos = [];
+    document.querySelectorAll('tbody tr').forEach(row => {
+        if (row.children.length >= 2 && !row.children[0].hasAttribute('colspan')) {
+            const sku = row.children[0].textContent.trim();
+            // Tomar el texto principal del producto
+            const nombreDiv = row.children[1].querySelector('.fw-bold');
+            const nombre = nombreDiv ? nombreDiv.textContent.trim() : row.children[1].textContent.trim();
+            
+            if (nombre) {
+                productos.push({ sku: sku, nombre: nombre });
+            }
+        }
+    });
+
+    // Evento de escritura
+    inputBusqueda.addEventListener('input', function() {
+        const query = this.value.toLowerCase().trim();
+        sugerenciasDiv.innerHTML = '';
+
+        if (query.length === 0) return;
+
+        // Filtrar coincidencias
+        const coincidencias = productos.filter(p => 
+            p.sku.toLowerCase().includes(query) || p.nombre.toLowerCase().includes(query)
+        ).slice(0, 8);
+
+        if (coincidencias.length === 0) {
+            const noMatch = document.createElement('div');
+            noMatch.className = 'list-group-item text-muted small py-2';
+            noMatch.textContent = 'Sin coincidencias...';
+            sugerenciasDiv.appendChild(noMatch);
+            return;
+        }
+
+        // Renderizar sugerencias
+        coincidencias.forEach(p => {
+            const item = document.createElement('a');
+            item.href = '#';
+            item.className = 'list-group-item list-group-item-action py-2 text-start small d-flex justify-content-between align-items-center';
+            item.innerHTML = `
+                <span>${p.nombre}</span>
+                <span class="badge bg-dark ms-2">${p.sku}</span>
+            `;
+
+            // Al hacer clic sobre la sugerencia
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                inputBusqueda.value = p.sku !== 'SIN SKU' ? p.sku : p.nombre;
+                sugerenciasDiv.innerHTML = '';
+                if (form) form.submit();
+            });
+
+            sugerenciasDiv.appendChild(item);
+        });
+    });
+
+    // Cerrar al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!busquedaContainer.contains(e.target)) {
+            sugerenciasDiv.innerHTML = '';
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends 'sistema/base.html' %}
+
+{% block title %}Punto de Venta - POS Refaccionaria{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h2><i class="fa-solid fa-cash-register text-success me-2"></i>Caja y Punto de Venta</h2>
+        <p class="text-muted">Módulo principal para facturación, cotizaciones y ventas rápidas.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+                <i class="fa-solid fa-cart-shopping fa-3x text-success mb-3"></i>
+                <h5 class="card-title fw-bold">Nueva Venta</h5>
+                <p class="card-text text-muted">Realizar cobros, buscar repuestos y escanear SKUs.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+                <i class="fa-solid fa-file-invoice-dollar fa-3x text-primary mb-3"></i>
+                <h5 class="card-title fw-bold">Cotizaciones</h5>
+                <p class="card-text text-muted">Generar y consultar presupuestos para clientes.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

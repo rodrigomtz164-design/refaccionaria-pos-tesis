@@ -1,0 +1,51 @@
+{% extends 'sistema/base.html' %}
+
+{% block title %}Iniciar Sesión - POS Refaccionaria{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 75vh;">
+    <div class="col-md-4">
+        <div class="card shadow-lg border-0 rounded-3">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="fa-solid fa-gears text-primary fa-3x mb-2"></i>
+                    <h4 class="fw-bold">Acceso al Sistema</h4>
+                    <p class="text-muted small">Ingresa tus credenciales para continuar</p>
+                </div>
+
+                {% if form.errors %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                        Usuario o contraseña incorrectos.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endif %}
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="id_username" class="form-label font-weight-bold">
+                            <i class="fa-solid fa-user me-1"></i> Usuario
+                        </label>
+                        <input type="text" name="username" class="form-control" id="id_username" placeholder="Tu usuario" required autofocus>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="id_password" class="form-label font-weight-bold">
+                            <i class="fa-solid fa-lock me-1"></i> Contraseña
+                        </label>
+                        <input type="password" name="password" class="form-control" id="id_password" placeholder="••••••••" required>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                            <i class="fa-solid fa-right-to-bracket me-2"></i> Iniciar Sesión
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

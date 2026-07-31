@@ -92,10 +92,12 @@ class Producto(models.Model):
     precio_costo = models.DecimalField(max_digits=10, decimal_places=2)
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2)
     
-    stock_actual = models.IntegerField(default=0)
-    stock_minimo = models.IntegerField(default=5, help_text="Alerta de stock bajo")
+    # Soporte para decimales en ventas a granel (litros, metros, etc.)
+    stock_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=5.00, help_text="Alerta de stock bajo")
     
     es_granel = models.BooleanField(default=False, help_text="Marcar si se vende suelto/granel sin código")
+    unidad_medida = models.CharField(max_length=20, default='Pieza', help_text="Ej. Pieza, Litro, Metro")
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -126,7 +128,7 @@ class Venta(models.Model):
 class DetalleVenta(models.Model):
     venta = models.ForeignKey(Venta, on_delete=models.CASCADE, related_name='detalles')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
-    cantidad = models.IntegerField()
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
     precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2)
 
@@ -152,4 +154,3 @@ class LogAuditoria(models.Model):
 
     def __str__(self):
         return f"[{self.fecha_hora.strftime('%Y-%m-%d %H:%M')}] {self.usuario}: {self.accion}"
-    

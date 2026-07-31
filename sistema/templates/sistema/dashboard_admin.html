@@ -1,0 +1,42 @@
+{% extends 'sistema/base.html' %}
+
+{% block title %}Panel Administrador - POS Refaccionaria{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h2><i class="fa-solid fa-user-shield text-danger me-2"></i>Panel del Administrador</h2>
+        <p class="text-muted">Control general del sistema, reportes, usuarios e inventario global.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+                <i class="fa-solid fa-users fa-3x text-primary mb-3"></i>
+                <h5 class="card-title fw-bold">Gestión de Usuarios</h5>
+                <p class="card-text text-muted">Administra empleados, roles y permisos.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+                <i class="fa-solid fa-chart-line fa-3x text-success mb-3"></i>
+                <h5 class="card-title fw-bold">Reportes y Auditoría</h5>
+                <p class="card-text text-muted">Consulta logs de sistema y resumen de ventas.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+                <i class="fa-solid fa-boxes-stacked fa-3x text-warning mb-3"></i>
+                <h5 class="card-title fw-bold">Catálogo Base</h5>
+                <p class="card-text text-muted">Configura marcas, modelos y categorías de autos.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

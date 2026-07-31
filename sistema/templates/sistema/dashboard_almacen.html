@@ -1,0 +1,33 @@
+{% extends 'sistema/base.html' %}
+
+{% block title %}Panel Almacén - POS Refaccionaria{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 mb-4">
+        <h2><i class="fa-solid fa-warehouse text-warning me-2"></i>Panel de Almacén e Inventario</h2>
+        <p class="text-muted">Gestión de stock, códigos de barra y recepción de mercancía.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+                <i class="fa-solid fa-barcode fa-3x text-warning mb-3"></i>
+                <h5 class="card-title fw-bold">Catálogo de Productos</h5>
+                <p class="card-text text-muted">Alta, baja y modificación de refacciones y SKUs.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm text-center p-3">
+            <div class="card-body">
+                <i class="fa-solid fa-truck-field fa-3x text-info mb-3"></i>
+                <h5 class="card-title fw-bold">Proveedores e Entradas</h5>
+                <p class="card-text text-muted">Registro de compras e ingreso de mercancía.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
