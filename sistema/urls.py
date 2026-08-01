@@ -12,4 +12,18 @@ urlpatterns = [
 
     # Inventario / Tabla General
     path('productos/', views.lista_productos, name='lista_productos'),
+    path('productos/editar/<int:producto_id>/', views.editar_producto, name='editar_producto'),
+
+    # Punto de Venta / Caja Mostrador
+    path('pos/', views.pos_ventas, name='pos_ventas'),
+    path('pos/procesar-venta/', views.procesar_venta, name='procesar_venta'),
+
+    # Ticket de Venta
+    path('ventas/ticket/<int:venta_id>/', views.imprimir_ticket_venta, name='imprimir_ticket_venta'),
+
+    # Cotizaciones
+    path('cotizacion/guardar/', views.guardar_cotizacion, name='guardar_cotizacion'),
+    path('cotizaciones/', views.lista_cotizaciones, name='lista_cotizaciones'),
+    path('cotizaciones/imprimir/<int:cotizacion_id>/', views.generar_cotizacion_pdf, name='generar_cotizacion_pdf'),
+    path('cotizaciones/cargar-pos/<int:cotizacion_id>/', views.cargar_cotizacion_pos, name='cargar_cotizacion_pos'),
 ]

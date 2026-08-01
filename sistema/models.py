@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
+from datetime import timedelta
 
 # ==========================================
 # 1. USUARIOS Y ROLES (Admin, Seller, Stocker)
@@ -137,13 +139,38 @@ class DetalleVenta(models.Model):
 
 
 class Cotizacion(models.Model):
-    vendedor = models.ForeignKey(Usuario, on_delete=models.PROTECT)
-    cliente_nombre = models.CharField(max_length=150, blank=True, null=True)
+    ESTADOS = [
+        ('PENDIENTE', 'Pendiente'),
+        ('CONVERTIDA', 'Convertida a Venta'),
+        ('VENCIDA', 'Vencida'),
+    ]
+
+    vendedor = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='cotizaciones')
+    cliente_nombre = models.CharField(max_length=150, blank=True, null=True, default='Cliente Mostrador')
+    cliente_telefono = models.CharField(max_length=20, blank=True, null=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    estado = models.CharField(max_length=20, choices=ESTADOS, default='PENDIENTE')
+
+    @property
+    def es_valida(self):
+        """Regla de negocio: Vigente estrictamente dentro de las 24 horas de creación"""
+        return timezone.now() <= (self.fecha_creacion + timedelta(hours=24))
 
     def __str__(self):
         return f"Cotización #{self.id} - {self.cliente_nombre or 'Cliente Mostrador'}"
+
+
+class DetalleCotizacion(models.Model):
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.CASCADE, related_name='detalles')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
+    precio_cotizado = models.DecimalField(max_digits=10, decimal_places=2)
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.cantidad} x {self.producto.nombre} en Cotización #{self.cotizacion.id}"
 
 
 class LogAuditoria(models.Model):

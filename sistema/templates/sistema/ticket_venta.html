@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Ticket de Venta #{{ venta.id }} - Refaccionaria Los Paddys</title>
+
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            color: #000;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 10px;
+        }
+
+        .ticket-card {
+            background: #fff;
+            max-width: 300px;
+            margin: 0 auto;
+            padding: 15px;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-left { text-align: left; }
+
+        .linea {
+            border-bottom: 1px dashed #000;
+            margin: 8px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        th { border-bottom: 1px solid #000; text-align: left; }
+        td { padding: 3px 0; }
+
+        .btn-imprimir {
+            display: block;
+            width: 100%;
+            max-width: 300px;
+            margin: 10px auto;
+            padding: 10px;
+            background-color: #0d6efd;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: #fff; padding: 0; }
+            .ticket-card { border: none; box-shadow: none; width: 100%; max-width: 100%; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <button onclick="window.print()" class="btn-imprimir no-print">🖨️ Imprimir Ticket</button>
+
+    <div class="ticket-card">
+        <!-- Encabezado -->
+        <div class="text-center">
+            <h2 style="margin: 0; font-size: 16px; font-weight: bold;">REFACCIONARIA LOS PADDYS</h2>
+            <p style="margin: 3px 0;">Venta de Refacciones y Automotriz</p>
+            <p style="margin: 3px 0;">Tel: (55) 1234-5678</p>
+        </div>
+
+        <div class="linea"></div>
+
+        <!-- Info Venta -->
+        <div>
+            <strong>FOLIO VENTA: #{{ venta.id }}</strong><br>
+            Fecha: {{ venta.fecha_venta|date:"d/m/Y H:i" }}<br>
+            Atendido por: {{ venta.vendedor.get_full_name|default:venta.vendedor.username }}
+        </div>
+
+        <div class="linea"></div>
+
+        <!-- Tabla Productos -->
+        <table>
+            <thead>
+                <tr>
+                    <th>CANT</th>
+                    <th>PROD</th>
+                    <th class="text-right">P.U</th>
+                    <th class="text-right">TOTAL</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for det in venta.detalles.all %}
+                <tr>
+                    <td>{{ det.cantidad }}</td>
+                    <td>{{ det.producto.nombre|truncatechars:15 }}</td>
+                    <td class="text-right">${{ det.precio_unitario }}</td>
+                    <td class="text-right">${{ det.subtotal }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="linea"></div>
+
+        <!-- Totales -->
+        <table>
+            <tr>
+                <td>Subtotal:</td>
+                <td class="text-right">${{ venta.subtotal }}</td>
+            </tr>
+            {% if venta.descuento_aplicado > 0 %}
+            <tr>
+                <td>Descuento:</td>
+                <td class="text-right">-{{ venta.descuento_aplicado }}%</td>
+            </tr>
+            {% endif %}
+            <tr style="font-weight: bold; font-size: 13px;">
+                <td>TOTAL:</td>
+                <td class="text-right">${{ venta.total }}</td>
+            </tr>
+            <tr>
+                <td>Efectivo Recibido:</td>
+                <td class="text-right">${{ paga_con }}</td>
+            </tr>
+            <tr>
+                <td>Cambio:</td>
+                <td class="text-right">${{ cambio }}</td>
+            </tr>
+        </table>
+
+        <div class="linea"></div>
+
+        <!-- Pie de página -->
+        <div class="text-center" style="margin-top: 10px;">
+            <p style="margin: 2px 0; font-weight: bold;">¡GRACIAS POR SU COMPRA!</p>
+            <p style="margin: 2px 0; font-size: 10px;">Conserve este ticket para cualquier aclaración o garantía.</p>
+        </div>
+    </div>
+
+</body>
+</html>
