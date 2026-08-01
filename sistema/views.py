@@ -2,7 +2,7 @@ import json
 from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.http import JsonResponse, HttpResponse
 from django.db import transaction
 from django.utils import timezone
@@ -10,8 +10,10 @@ from datetime import timedelta
 
 from .models import (
     Producto, Categoria, MarcaAuto, ModeloAuto, 
-    Venta, DetalleVenta, Cotizacion, DetalleCotizacion, LogAuditoria
+    Venta, DetalleVenta, Cotizacion, DetalleCotizacion, LogAuditoria, Usuario, Rol
 )
+from .decorators import admin_required, almacen_required, vendedor_required
+
 
 @login_required
 def dashboard(request):
@@ -21,20 +23,52 @@ def dashboard(request):
     usuario = request.user
     
     if usuario.rol and usuario.rol.nombre == 'Administrador':
-        return render(request, 'sistema/dashboard_admin.html')
+        return dashboard_admin(request)
     elif usuario.rol and usuario.rol.nombre == 'Almacenista':
         return render(request, 'sistema/dashboard_almacen.html')
     elif usuario.rol and usuario.rol.nombre == 'Vendedor':
         return render(request, 'sistema/dashboard_ventas.html')
     else:
-        return render(request, 'sistema/dashboard_admin.html')
+        return dashboard_admin(request)
 
 
-@login_required
+@admin_required
+def dashboard_admin(request):
+    """
+    Dashboard exclusivo para el Administrador con KPIs, Gráficas y Alertas.
+    """
+    hoy = timezone.now().date()
+    
+    # 1. Métricas / KPIs principales
+    total_ventas_hoy = Venta.objects.filter(fecha_venta__date=hoy).aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
+    num_ventas_hoy = Venta.objects.filter(fecha_venta__date=hoy).count()
+    productos_bajo_stock = Producto.objects.filter(stock_actual__lt=3)
+    cant_bajo_stock = productos_bajo_stock.count()
+    cotizaciones_mes = Cotizacion.objects.count()
+
+    # 2. Datos para Gráfica de Ventas
+    ventas_recientes = Venta.objects.order_by('-fecha_venta')[:5]
+    labels_ventas = [v.fecha_venta.strftime("%H:%M") for v in reversed(ventas_recientes)]
+    data_ventas = [float(v.total) for v in reversed(ventas_recientes)]
+
+    context = {
+        'total_ventas_hoy': total_ventas_hoy,
+        'num_ventas_hoy': num_ventas_hoy,
+        'cant_bajo_stock': cant_bajo_stock,
+        'cotizaciones_mes': cotizaciones_mes,
+        'productos_bajo_stock': productos_bajo_stock,
+        'labels_ventas': labels_ventas,
+        'data_ventas': data_ventas,
+    }
+    return render(request, 'sistema/dashboard_admin.html', context)
+
+
+@almacen_required
 def lista_productos(request):
     """
     Muestra la tabla general de productos con filtros dinámicos por SKU/nombre,
     categoría, marca y modelo de auto.
+    Acceso: Administrador y Almacenista.
     """
     productos = Producto.objects.select_related('categoria', 'proveedor').prefetch_related('aplicaciones__marca').all()
 
@@ -67,10 +101,11 @@ def lista_productos(request):
     return render(request, 'sistema/lista_productos.html', context)
 
 
-@login_required
+@vendedor_required
 def pos_ventas(request):
     """
     Vista principal para el Punto de Venta (POS) / Caja Mostrador.
+    Acceso: Administrador y Vendedor.
     """
     productos = Producto.objects.filter(stock_actual__gt=0).select_related('categoria').prefetch_related('aplicaciones__marca')
     categorias = Categoria.objects.all()
@@ -84,11 +119,12 @@ def pos_ventas(request):
     return render(request, 'sistema/pos_ventas.html', context)
 
 
-@login_required
+@vendedor_required
 def procesar_venta(request):
     """
     Procesa el cobro de la venta: descuenta el inventario en MySQL,
-    marcar la cotización como CONVERTIDA (si aplica) y guarda en auditoría.
+    marca la cotización como CONVERTIDA (si aplica) y guarda en auditoría.
+    Acceso: Administrador y Vendedor.
     """
     if request.method == 'POST':
         try:
@@ -147,7 +183,6 @@ def procesar_venta(request):
                     item['producto'].stock_actual -= item['cantidad']
                     item['producto'].save()
 
-                # Si la venta proviene de una cotización, la marcamos como CONVERTIDA
                 if cotizacion_id:
                     try:
                         cot = Cotizacion.objects.get(id=cotizacion_id)
@@ -176,11 +211,12 @@ def procesar_venta(request):
     return JsonResponse({'success': False, 'message': 'Método no permitido.'})
 
 
-@login_required
+@almacen_required
 def editar_producto(request, producto_id):
     """
     Permite al Almacenista / Administrador actualizar en tiempo real
     el precio de venta y stock disponible de un producto.
+    Acceso: Administrador y Almacenista.
     """
     if request.method == 'POST':
         try:
@@ -217,10 +253,11 @@ def editar_producto(request, producto_id):
 # VISTAS DE COTIZACIONES Y TICKETS
 # ==========================================
 
-@login_required
+@vendedor_required
 def guardar_cotizacion(request):
     """
     Guarda una cotización generada desde el POS sin descontar inventario.
+    Acceso: Administrador y Vendedor.
     """
     if request.method == 'POST':
         try:
@@ -282,10 +319,11 @@ def guardar_cotizacion(request):
     return JsonResponse({'success': False, 'message': 'Método no permitido.'})
 
 
-@login_required
+@vendedor_required
 def lista_cotizaciones(request):
     """
     Muestra la lista de cotizaciones registradas con sus respectivos estados y vigencia.
+    Acceso: Administrador y Vendedor.
     """
     cotizaciones = Cotizacion.objects.select_related('vendedor').prefetch_related('detalles').order_by('-fecha_creacion')
     
@@ -308,10 +346,11 @@ def lista_cotizaciones(request):
     return render(request, 'sistema/lista_cotizaciones.html', context)
 
 
-@login_required
+@vendedor_required
 def generar_cotizacion_pdf(request, cotizacion_id):
     """
     Renderiza la vista previa oficial para impresión o descarga PDF de la cotización.
+    Acceso: Administrador y Vendedor.
     """
     cotizacion = get_object_or_404(Cotizacion.objects.prefetch_related('detalles__producto'), id=cotizacion_id)
     fecha_expiracion = cotizacion.fecha_creacion + timedelta(hours=24)
@@ -323,11 +362,11 @@ def generar_cotizacion_pdf(request, cotizacion_id):
     return render(request, 'sistema/cotizacion_pdf.html', context)
 
 
-@login_required
+@vendedor_required
 def cargar_cotizacion_pos(request, cotizacion_id):
     """
-    Recupera una cotización y devuelve sus items con los PRECIOS VIGENTES DEL DÍA
-    para ser cargados en el Punto de Venta.
+    Recupera una cotización y devuelve sus items con los PRECIOS VIGENTES DEL DÍA.
+    Acceso: Administrador y Vendedor.
     """
     try:
         cotizacion = get_object_or_404(Cotizacion.objects.prefetch_related('detalles__producto'), id=cotizacion_id)
@@ -372,10 +411,11 @@ def cargar_cotizacion_pos(request, cotizacion_id):
         return JsonResponse({'success': False, 'message': str(e)})
 
 
-@login_required
+@vendedor_required
 def imprimir_ticket_venta(request, venta_id):
     """
     Renderiza la plantilla en formato de Ticket de Venta Térmico para su impresión directa.
+    Acceso: Administrador y Vendedor.
     """
     venta = get_object_or_404(Venta.objects.prefetch_related('detalles__producto').select_related('vendedor'), id=venta_id)
     
@@ -393,3 +433,115 @@ def imprimir_ticket_venta(request, venta_id):
         'cambio': cambio,
     }
     return render(request, 'sistema/ticket_venta.html', context)
+
+
+# ==========================================
+# VISTAS DE ADMINISTRACIÓN INTERNA
+# ==========================================
+
+@admin_required
+def lista_usuarios(request):
+    """
+    Muestra la lista de usuarios registrados dentro del diseño del sistema.
+    Acceso: Solo Administrador.
+    """
+    usuarios = Usuario.objects.select_related('rol').all()
+    return render(request, 'sistema/lista_usuarios.html', {'usuarios': usuarios})
+
+
+@admin_required
+def crear_usuario(request):
+    """
+    Crea un nuevo usuario directamente en la interfaz del ERP.
+    Acceso: Solo Administrador.
+    """
+    error = None
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        first_name = request.POST.get('first_name', '')
+        last_name = request.POST.get('last_name', '')
+        rol_id = request.POST.get('rol_id')
+
+        if Usuario.objects.filter(username=username).exists():
+            error = "El nombre de usuario ya existe."
+        else:
+            rol = Rol.objects.get(id=rol_id) if rol_id else None
+            user = Usuario.objects.create_user(
+                username=username,
+                password=password,
+                first_name=first_name,
+                last_name=last_name,
+                rol=rol
+            )
+            LogAuditoria.objects.create(
+                usuario=request.user if request.user.is_authenticated else None,
+                accion="Creación de Usuario",
+                detalles=f"Se creó el usuario '{username}' con rol '{rol.nombre if rol else 'Sin Rol'}'"
+            )
+            return redirect('lista_usuarios')
+
+    roles = Rol.objects.all()
+    return render(request, 'sistema/crear_usuario.html', {'roles': roles, 'error': error})
+
+
+@admin_required
+def editar_usuario(request, usuario_id):
+    """
+    Permite modificar los datos, rol y estado de un usuario existente.
+    Protege a los superusuarios para evitar su modificación o desactivación accidental.
+    Acceso: Solo Administrador.
+    """
+    usuario_editar = get_object_or_404(Usuario, id=usuario_id)
+
+    # 🛑 CANDADO DE SEGURIDAD: Si es superusuario, redirige a la lista
+    if usuario_editar.is_superuser:
+        return redirect('lista_usuarios')
+
+    error = None
+
+    if request.method == 'POST':
+        password = request.POST.get('password', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        rol_id = request.POST.get('rol_id')
+        is_active = request.POST.get('is_active') == 'on'
+
+        usuario_editar.first_name = first_name
+        usuario_editar.last_name = last_name
+        usuario_editar.is_active = is_active
+
+        if password:
+            usuario_editar.set_password(password)
+
+        if rol_id:
+            usuario_editar.rol = Rol.objects.get(id=rol_id)
+        else:
+            usuario_editar.rol = None
+
+        usuario_editar.save()
+
+        LogAuditoria.objects.create(
+            usuario=request.user,
+            accion="Edición de Usuario",
+            detalles=f"Se actualizaron los datos del usuario '{usuario_editar.username}'"
+        )
+        return redirect('lista_usuarios')
+
+    roles = Rol.objects.all()
+    context = {
+        'usuario_editar': usuario_editar,
+        'roles': roles,
+        'error': error
+    }
+    return render(request, 'sistema/editar_usuario.html', context)
+
+
+@admin_required
+def lista_auditoria(request):
+    """
+    Muestra el historial de auditoría dentro del diseño del sistema.
+    Acceso: Solo Administrador.
+    """
+    logs = LogAuditoria.objects.select_related('usuario').order_by('-fecha_hora')[:100]
+    return render(request, 'sistema/lista_auditoria.html', {'logs': logs})

@@ -10,48 +10,262 @@
     <!-- FontAwesome para iconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-bg: #1e293b;
+            --sidebar-hover: #334155;
+            --sidebar-active: #2563eb;
+            --topbar-height: 60px;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Layout Principal */
+        #wrapper {
+            display: flex;
+            width: 100%;
+            align-items: stretch;
+        }
+
+        /* Sidebar Styling */
+        #sidebar {
+            min-width: var(--sidebar-width);
+            max-width: var(--sidebar-width);
+            background: var(--sidebar-bg);
+            color: #fff;
+            transition: all 0.3s ease;
+            min-height: 100vh;
+            z-index: 1000;
+            box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+        }
+
+        #sidebar .sidebar-header {
+            padding: 20px;
+            background: #0f172a;
+            border-bottom: 1px solid #334155;
+        }
+
+        #sidebar ul.components {
+            padding: 15px 0;
+        }
+
+        #sidebar ul p {
+            color: #94a3b8;
+            padding: 10px 25px 5px 25px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 0;
+        }
+
+        #sidebar ul li a {
+            padding: 12px 25px;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            color: #cbd5e1;
+            text-decoration: none;
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+        }
+
+        #sidebar ul li a:hover {
+            color: #fff;
+            background: var(--sidebar-hover);
+            border-left-color: #60a5fa;
+        }
+
+        #sidebar ul li.active > a {
+            color: #fff;
+            background: var(--sidebar-hover);
+            border-left-color: var(--sidebar-active);
+            font-weight: 600;
+        }
+
+        #sidebar ul li a i {
+            margin-right: 12px;
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        /* Main Content Styling */
+        #content {
+            width: 100%;
+            min-height: 100vh;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Topbar */
+        .top-navbar {
+            height: var(--topbar-height);
+            background: #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            padding: 0 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .user-badge {
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+
+        /* Responsive Sidebar */
+        @media (max-width: 768px) {
+            #sidebar {
+                margin-left: calc(-1 * var(--sidebar-width));
+            }
+            #sidebar.active {
+                margin-left: 0;
+            }
+        }
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
-<body class="bg-light">
+<body>
 
-    <!-- Navbar Principal -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="{% url 'dashboard' %}">
-                <i class="fa-solid fa-gears text-warning"></i> Refaccionaria POS
+<div id="wrapper">
+    {% if user.is_authenticated %}
+    <!-- Sidebar / Menú Lateral -->
+    <nav id="sidebar">
+        <div class="sidebar-header d-flex align-items-center justify-content-between">
+            <a href="{% url 'dashboard' %}" class="text-white text-decoration-none fw-bold fs-5">
+                <i class="fa-solid fa-gears text-warning me-2"></i>Refaccionaria
             </a>
-            
+        </div>
+
+        <ul class="list-unstyled components">
+            <li>
+                <a href="{% url 'dashboard' %}">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </a>
+            </li>
+
+            <!-- MODULO VENDEDOR / CAJA -->
+            {% if user.rol.nombre == 'Vendedor' or user.is_superuser or user.rol.nombre == 'Administrador' %}
+            <p>Punto de Venta</p>
+            <li>
+                <a href="{% url 'pos_ventas' %}">
+                    <i class="fa-solid fa-cash-register text-success"></i> Nueva Venta (Caja)
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'lista_cotizaciones' %}">
+                    <i class="fa-solid fa-file-invoice-dollar text-info"></i> Cotizaciones
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- MODULO ALMACENISTA -->
+            {% if user.rol.nombre == 'Almacenista' or user.is_superuser or user.rol.nombre == 'Administrador' %}
+            <p>Inventario & Almacén</p>
+            <li>
+                <a href="{% url 'lista_productos' %}">
+                    <i class="fa-solid fa-boxes-stacked text-warning"></i> Catálogo Productos
+                </a>
+            </li>
+            {% endif %}
+
+            <!-- MODULO ADMINISTRADOR -->
+            {% if user.is_superuser or user.rol.nombre == 'Administrador' %}
+            <p>Administración</p>
+            <li>
+                <a href="{% url 'lista_usuarios' %}">
+                    <i class="fa-solid fa-users-gear text-primary"></i> Gestión Usuarios
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'lista_auditoria' %}">
+                    <i class="fa-solid fa-shield-halved text-danger"></i> Reportes & Auditoría
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    <!-- Contenido Principal -->
+    <div id="content">
+        <!-- Topbar -->
+        <header class="top-navbar">
+            <div class="d-flex align-items-center">
+                {% if user.is_authenticated %}
+                <button type="button" id="sidebarCollapse" class="btn btn-light btn-sm me-3 border d-md-none">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                {% endif %}
+                <span class="text-muted fw-semibold">Sistema de Control Interno POS</span>
+            </div>
+
             {% if user.is_authenticated %}
-            <div class="d-flex align-items-center text-white">
-                <span class="me-3">
-                    <i class="fa-solid fa-user-circle"></i> 
-                    {{ user.username }} 
-                    <span class="badge bg-secondary ms-1">
-                        {% if user.rol %}{{ user.rol.nombre }}{% else %}Superusuario{% endif %}
-                    </span>
-                </span>
-                
-                <form action="{% url 'logout' %}" method="post" class="d-inline">
+            <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 35px; height: 35px;">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <div class="d-none d-sm-block">
+                        <div class="fw-bold fs-6 lh-1">{{ user.username }}</div>
+                        <small class="text-muted">
+                            {% if user.is_superuser %}
+                                <span class="badge bg-danger user-badge">Superusuario</span>
+                            {% elif user.rol %}
+                                <span class="badge bg-secondary user-badge">{{ user.rol.nombre }}</span>
+                            {% else %}
+                                <span class="badge bg-dark user-badge">Sin Rol</span>
+                            {% endif %}
+                        </small>
+                    </div>
+                </div>
+
+                <form action="{% url 'logout' %}" method="post" class="m-0">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger btn-sm">
-                        <i class="fa-solid fa-right-from-bracket"></i> Salir
+                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3" title="Cerrar Sesión">
+                        <i class="fa-solid fa-right-from-bracket me-1"></i> Salir
                     </button>
                 </form>
             </div>
             {% endif %}
-        </div>
-    </nav>
+        </header>
 
-    <!-- Contenido Principal -->
-    <main class="container-fluid px-4">
-        {% block content %}
-        <!-- Aquí se inyectará el contenido de las otras vistas -->
-        {% endblock %}
-    </main>
+        <!-- Área de Contenido Dinámico -->
+        <main class="p-4 flex-grow-1">
+            {% block content %}
+            <!-- Aquí se inyecta la vista correspondiente -->
+            {% endblock %}
+        </main>
+    </div>
+</div>
 
-    <!-- Bootstrap 5 JS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    
-    {% block extra_js %}{% endblock %}
+<!-- Bootstrap 5 JS CDN -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Toggle para menú responsive en pantallas pequeñas
+    document.addEventListener("DOMContentLoaded", function () {
+        const sidebarCollapse = document.getElementById('sidebarCollapse');
+        const sidebar = document.getElementById('sidebar');
+
+        if (sidebarCollapse) {
+            sidebarCollapse.addEventListener('click', function () {
+                sidebar.classList.toggle('active');
+            });
+        }
+    });
+</script>
+
+{% block extra_js %}{% endblock %}
 </body>
 </html>

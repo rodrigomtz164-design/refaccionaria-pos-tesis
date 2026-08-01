@@ -26,4 +26,10 @@ urlpatterns = [
     path('cotizaciones/', views.lista_cotizaciones, name='lista_cotizaciones'),
     path('cotizaciones/imprimir/<int:cotizacion_id>/', views.generar_cotizacion_pdf, name='generar_cotizacion_pdf'),
     path('cotizaciones/cargar-pos/<int:cotizacion_id>/', views.cargar_cotizacion_pos, name='cargar_cotizacion_pos'),
+
+    # Administración Interna (Rutas personalizadas del POS)
+    path('usuarios/', views.lista_usuarios, name='lista_usuarios'),
+    path('usuarios/crear/', views.crear_usuario, name='crear_usuario'),
+    path('usuarios/editar/<int:usuario_id>/', views.editar_usuario, name='editar_usuario'),  # <-- RUTA AGREGADA
+    path('auditoria/', views.lista_auditoria, name='lista_auditoria'),
 ]

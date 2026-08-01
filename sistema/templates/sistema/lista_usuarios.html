@@ -1,0 +1,88 @@
+{% extends 'sistema/base.html' %}
+
+{% block title %}Gestión de Usuarios - POS Refaccionaria{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-users-gear text-primary me-2"></i>Gestión de Usuarios
+            </h2>
+            <p class="text-muted mb-0">Administra las cuentas de acceso y roles de personal.</p>
+        </div>
+        <a href="{% url 'crear_usuario' %}" class="btn btn-primary fw-bold shadow-sm">
+            <i class="fa-solid fa-user-plus me-1"></i> Crear Usuario
+        </a>
+    </div>
+
+    <!-- Tabla de Usuarios -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr class="small text-muted">
+                            <th class="ps-4">Usuario</th>
+                            <th>Nombre Completo</th>
+                            <th>Rol</th>
+                            <th>Estado</th>
+                            <th class="text-end pe-4">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usr in usuarios %}
+                        <tr>
+                            <td class="ps-4 fw-bold text-dark">
+                                <i class="fa-solid fa-circle-user text-secondary me-2"></i>{{ usr.username }}
+                            </td>
+                            <td>{{ usr.get_full_name|default:"--" }}</td>
+                            <td>
+                                {% if usr.is_superuser %}
+                                    <span class="badge bg-danger text-white border border-danger">
+                                        <i class="fa-solid fa-shield-halved me-1"></i> Superusuario
+                                    </span>
+                                {% elif usr.rol.nombre == 'Administrador' %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Administrador</span>
+                                {% elif usr.rol.nombre == 'Almacenista' %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Almacenista</span>
+                                {% elif usr.rol.nombre == 'Vendedor' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">Vendedor</span>
+                                {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary border">Sin Rol Asignado</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if usr.is_active %}
+                                    <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                {% if usr.is_superuser %}
+                                    <span class="badge bg-light text-muted border py-2 px-3 fw-semibold">
+                                        <i class="fa-solid fa-lock text-secondary me-1"></i> Protegido
+                                    </span>
+                                {% else %}
+                                    <a href="{% url 'editar_usuario' usr.id %}" class="btn btn-sm btn-outline-primary fw-bold">
+                                        <i class="fa-solid fa-pen-to-square me-1"></i> Editar
+                                    </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-4 text-muted">
+                                No hay usuarios registrados.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

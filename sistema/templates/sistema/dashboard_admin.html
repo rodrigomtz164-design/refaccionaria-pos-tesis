@@ -1,42 +1,201 @@
 {% extends 'sistema/base.html' %}
 
-{% block title %}Panel Administrador - POS Refaccionaria{% endblock %}
+{% block title %}Dashboard Administrador - POS Refaccionaria{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12 mb-4">
-        <h2><i class="fa-solid fa-user-shield text-danger me-2"></i>Panel del Administrador</h2>
-        <p class="text-muted">Control general del sistema, reportes, usuarios e inventario global.</p>
+<div class="container-fluid py-2">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-chart-pie text-primary me-2"></i>Panel del Administrador
+            </h2>
+            <p class="text-muted mb-0">Resumen operativo, métricas del negocio y estado del inventario.</p>
+        </div>
+        <div>
+            <a href="{% url 'pos_ventas' %}" class="btn btn-success fw-bold shadow-sm">
+                <i class="fa-solid fa-cash-register me-1"></i> Abrir Caja / POS
+            </a>
+        </div>
     </div>
-</div>
 
-<div class="row g-4">
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm text-center p-3">
-            <div class="card-body">
-                <i class="fa-solid fa-users fa-3x text-primary mb-3"></i>
-                <h5 class="card-title fw-bold">Gestión de Usuarios</h5>
-                <p class="card-text text-muted">Administra empleados, roles y permisos.</p>
+    <!-- TARJETAS DE MÉTRICAS (KPIs) -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fw-semibold small text-uppercase">Ventas Hoy</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0">${{ total_ventas_hoy|floatformat:2 }}</h3>
+                        </div>
+                        <div class="bg-success-subtle p-3 rounded-circle text-success">
+                            <i class="fa-solid fa-sack-dollar fs-4"></i>
+                        </div>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        <i class="fa-solid fa-receipt me-1"></i> {{ num_ventas_hoy }} transacción(es)
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fw-semibold small text-uppercase">Stock Crítico</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0">{{ cant_bajo_stock }}</h3>
+                        </div>
+                        <div class="bg-warning-subtle p-3 rounded-circle text-warning">
+                            <i class="fa-solid fa-triangle-exclamation fs-4"></i>
+                        </div>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        Productos con menos de 3 unidades
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-info">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fw-semibold small text-uppercase">Cotizaciones</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0">{{ cotizaciones_mes }}</h3>
+                        </div>
+                        <div class="bg-info-subtle p-3 rounded-circle text-info">
+                            <i class="fa-solid fa-file-invoice-dollar fs-4"></i>
+                        </div>
+                    </div>
+                    <small class="text-muted mt-2 d-block">
+                        Registradas en el sistema
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fw-semibold small text-uppercase">Accesos Directos</span>
+                            <div class="mt-2">
+                                <a href="{% url 'lista_usuarios' %}" class="btn btn-sm btn-outline-primary me-1">Usuarios</a>
+                                <a href="{% url 'lista_auditoria' %}" class="btn btn-sm btn-outline-danger">Auditoría</a>
+                            </div>
+                        </div>
+                        <div class="bg-primary-subtle p-3 rounded-circle text-primary">
+                            <i class="fa-solid fa-sliders fs-4"></i>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm text-center p-3">
-            <div class="card-body">
-                <i class="fa-solid fa-chart-line fa-3x text-success mb-3"></i>
-                <h5 class="card-title fw-bold">Reportes y Auditoría</h5>
-                <p class="card-text text-muted">Consulta logs de sistema y resumen de ventas.</p>
+
+    <!-- SECCIÓN DE GRÁFICAS Y TABLAS -->
+    <div class="row g-4">
+        <!-- Gráfica de Ventas -->
+        <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 border-0 fw-bold text-dark d-flex align-items-center justify-content-between">
+                    <span><i class="fa-solid fa-chart-line text-primary me-2"></i>Comportamiento de Ventas</span>
+                    <span class="badge bg-light text-dark border">En Tiempo Real</span>
+                </div>
+                <div class="card-body">
+                    <canvas id="chartVentas" height="130"></canvas>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm text-center p-3">
-            <div class="card-body">
-                <i class="fa-solid fa-boxes-stacked fa-3x text-warning mb-3"></i>
-                <h5 class="card-title fw-bold">Catálogo Base</h5>
-                <p class="card-text text-muted">Configura marcas, modelos y categorías de autos.</p>
+
+        <!-- Alertas de Inventario Bajo -->
+        <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 border-0 fw-bold text-dark d-flex align-items-center justify-content-between">
+                    <span><i class="fa-solid fa-boxes-stacked text-warning me-2"></i>Alertas de Inventario</span>
+                    <a href="{% url 'lista_productos' %}" class="text-decoration-none small">Ver Todo</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="small text-muted">
+                                    <th class="ps-3">SKU / Producto</th>
+                                    <th>Precio</th>
+                                    <th class="text-end pe-3">Stock</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prod in productos_bajo_stock %}
+                                <tr>
+                                    <td class="ps-3">
+                                        <div class="fw-bold text-dark">{{ prod.codigo_barras }}</div>
+                                        <div class="small text-muted">{{ prod.nombre }}</div>
+                                    </td>
+                                    <td class="fw-semibold">${{ prod.precio|floatformat:2 }}</td>
+                                    <td class="text-end pe-3">
+                                        <span class="badge bg-danger">{{ prod.stock }} pzs</span>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center py-4 text-muted">
+                                        <i class="fa-solid fa-circle-check text-success fs-4 d-block mb-2"></i>
+                                        Todo el inventario cuenta con stock suficiente.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Librería Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const ctx = document.getElementById('chartVentas').getContext('2d');
+        
+        const labels = {{ labels_ventas|safe }};
+        const data = {{ data_ventas|safe }};
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels.length ? labels : ['Sin Datos'],
+                datasets: [{
+                    label: 'Monto de Venta ($)',
+                    data: data.length ? data : [0],
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#2563eb'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    });
+</script>
 {% endblock %}
