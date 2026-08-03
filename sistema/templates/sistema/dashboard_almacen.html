@@ -3,31 +3,305 @@
 {% block title %}Panel Almacén - POS Refaccionaria{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12 mb-4">
-        <h2><i class="fa-solid fa-warehouse text-warning me-2"></i>Panel de Almacén e Inventario</h2>
-        <p class="text-muted">Gestión de stock, códigos de barra y recepción de mercancía.</p>
+<div class="container-fluid py-2">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-warehouse text-warning me-2"></i>Panel Operativo de Almacén
+            </h2>
+            <p class="text-muted mb-0">Control de inventario, métricas de existencias y alertas de stock.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
+                <i class="fa-solid fa-plus me-1"></i> Registrar Nueva Refacción
+            </button>
+            <a href="{% url 'lista_productos' %}" class="btn btn-warning fw-bold text-dark shadow-sm">
+                <i class="fa-solid fa-boxes-stacked me-1"></i> Ir al Catálogo Completo
+            </a>
+        </div>
+    </div>
+
+    <!-- TARJETAS DE MÉTRICAS (KPIs) -->
+    <div class="row g-3 mb-4">
+        <!-- Total Refacciones -->
+        <div class="col-12 col-md-4">
+            <a href="{% url 'lista_productos' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm border-start border-4 border-primary h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted fw-bold small text-uppercase">Total Refacciones</span>
+                                <h3 class="fw-bold text-dark mb-0 mt-1">{{ total_productos|default:"0" }}</h3>
+                                <small class="text-primary fw-bold">Ver catálogo completo <i class="fa-solid fa-arrow-right ms-1"></i></small>
+                            </div>
+                            <div class="bg-primary-subtle p-3 rounded-circle text-primary">
+                                <i class="fa-solid fa-boxes-stacked fs-3"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Alerta Stock Bajo -->
+        <div class="col-12 col-md-4">
+            <a href="{% url 'lista_productos' %}?filtro=stock_bajo" class="text-decoration-none">
+                <div class="card border-0 shadow-sm border-start border-4 border-danger h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted fw-bold small text-uppercase">Alertas Stock Bajo</span>
+                                <h3 class="fw-bold text-danger mb-0 mt-1">{{ total_stock_bajo|default:"0" }}</h3>
+                                <small class="text-danger fw-bold">Atender resurtido urgente <i class="fa-solid fa-arrow-right ms-1"></i></small>
+                            </div>
+                            <div class="bg-danger-subtle p-3 rounded-circle text-danger">
+                                <i class="fa-solid fa-triangle-exclamation fs-3"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Estado Operativo / Salud del Inventario -->
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fw-bold small text-uppercase">Estado de Almacén</span>
+                            <h5 class="fw-bold text-success mb-0 mt-1">Sincronizado</h5>
+                            <small class="text-muted">Conectado en tiempo real a Caja POS</small>
+                        </div>
+                        <div class="bg-success-subtle p-3 rounded-circle text-success">
+                            <i class="fa-solid fa-circle-check fs-3"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GRÁFICA Y LISTADO DE STOCK CRÍTICO -->
+    <div class="row g-4 mb-4">
+        <!-- Gráfica de Distribución por Categoría -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-chart-pie text-warning me-2"></i>Porcentaje de Piezas por Categoría
+                    </h5>
+                </div>
+                <div class="card-body d-flex align-items-center justify-content-center p-3">
+                    <div style="max-height: 260px; width: 100%;">
+                        <canvas id="chartCategorias"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla Rápida: Alertas de Resurtido Urgente -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-bell text-danger me-2"></i>Refacciones por Agotarse
+                    </h5>
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Acción Inmediata</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 280px;">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small text-muted">
+                                <tr>
+                                    <th class="ps-3">SKU / Refacción</th>
+                                    <th class="text-center">Stock Actual</th>
+                                    <th class="text-end pe-3">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in productos_bajo %}
+                                <tr>
+                                    <td class="ps-3">
+                                        <div class="fw-bold text-dark">{{ p.nombre }}</div>
+                                        <small class="text-muted">{{ p.sku|default:"SIN SKU" }}</small>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger fs-6">{{ p.stock_actual }} {{ p.unidad_medida }}</span>
+                                    </td>
+                                    <td class="text-end pe-3">
+                                        <a href="{% url 'lista_productos' %}?q={{ p.sku }}" class="btn btn-sm btn-outline-warning text-dark fw-bold">
+                                            <i class="fa-solid fa-pen-to-square me-1"></i> Resurtir
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center py-4 text-muted">
+                                        <i class="fa-solid fa-circle-check fa-2x text-success mb-2 d-block"></i>
+                                        ¡Inventario sano! No hay refacciones por debajo del stock mínimo.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="row g-4">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm text-center p-3">
-            <div class="card-body">
-                <i class="fa-solid fa-barcode fa-3x text-warning mb-3"></i>
-                <h5 class="card-title fw-bold">Catálogo de Productos</h5>
-                <p class="card-text text-muted">Alta, baja y modificación de refacciones y SKUs.</p>
+<!-- MODAL PARA REGISTRO DE NUEVA REFACCIÓN / PRODUCTO -->
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="fa-solid fa-boxes-packing text-warning me-2"></i>Alta de Nueva Refacción
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm text-center p-3">
-            <div class="card-body">
-                <i class="fa-solid fa-truck-field fa-3x text-info mb-3"></i>
-                <h5 class="card-title fw-bold">Proveedores e Entradas</h5>
-                <p class="card-text text-muted">Registro de compras e ingreso de mercancía.</p>
-            </div>
+            <form method="post" action="{% url 'lista_productos' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <!-- Tipo de Venta (Granel / Pieza) -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Tipo de Refacción / Venta</label>
+                            <select name="es_granel" id="select_es_granel" class="form-select fw-bold" onchange="actualizarUnidadMedida()">
+                                <option value="0">Pieza / Refacción Estándar</option>
+                                <option value="1">A Granel (Litros, Metros, Kilos)</option>
+                            </select>
+                        </div>
+
+                        <!-- Código de Barras / SKU -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase">SKU / Código de Barras</label>
+                            <div class="input-group">
+                                <input type="text" name="sku" id="input_sku" class="form-control fw-bold" placeholder="Ej: BAL-TSU-01" required>
+                                <button type="button" class="btn btn-outline-secondary" onclick="generarSKUAuto()" title="Generar Automático">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Auto
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Nombre -->
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Nombre del Producto / Refacción</label>
+                            <input type="text" name="nombre" class="form-control" placeholder="Ej: Balatas Delanteras Tsuru III" required>
+                        </div>
+
+                        <!-- Categoría -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Categoría</label>
+                            <select name="categoria" class="form-select" required>
+                                <option value="">-- Seleccionar Categoría --</option>
+                                {% for cat in categorias %}
+                                    <option value="{{ cat.id }}">{{ cat.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Unidad de Medida -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Unidad de Medida</label>
+                            <input type="text" name="unidad_medida" id="input_unidad" class="form-control" value="Pieza" required readonly>
+                        </div>
+
+                        <!-- Precio Venta -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Precio de Venta ($)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="0.01" name="precio_venta" class="form-control fw-bold text-success" required>
+                            </div>
+                        </div>
+
+                        <!-- Stock Inicial -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Stock Inicial</label>
+                            <input type="number" step="0.01" name="stock_actual" class="form-control fw-bold" required>
+                        </div>
+
+                        <!-- Stock Mínimo -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Stock Mínimo (Alerta)</label>
+                            <input type="number" step="0.01" name="stock_minimo" class="form-control" value="5" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Guardar en Inventario
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
+<!-- SCRIPTS DE CHART.JS Y LÓGICA DE FORMULARIO -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- GRÁFICA CON DATOS REALES DE DJANGO ---
+    const ctxCat = document.getElementById('chartCategorias');
+    if (ctxCat) {
+        const labels = {{ cat_nombres|safe|default:"[]" }};
+        const dataValues = {{ cat_cantidades|safe|default:"[]" }};
+
+        if (labels.length > 0) {
+            new Chart(ctxCat, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: dataValues,
+                        backgroundColor: ['#0d6efd', '#ffc107', '#198754', '#0dcaf0', '#6c757d', '#fd7e14'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: ${context.raw} piezas/SKUs`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            ctxCat.parentElement.innerHTML = '<p class="text-muted text-center my-auto py-4">Sin datos de productos registrados aún.</p>';
+        }
+    }
+});
+
+// Cambiar Unidad según si es a Granel
+function actualizarUnidadMedida() {
+    const esGranel = document.getElementById('select_es_granel').value;
+    const inputUnidad = document.getElementById('input_unidad');
+    if (esGranel === '1') {
+        inputUnidad.value = 'Litro/Metro/Kg';
+        inputUnidad.removeAttribute('readonly');
+    } else {
+        inputUnidad.value = 'Pieza';
+        inputUnidad.setAttribute('readonly', 'readonly');
+    }
+}
+
+// Generador automático de SKU / Código de barras
+function generarSKUAuto() {
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    document.getElementById('input_sku').value = 'REF-' + randomNum;
+}
+</script>
 {% endblock %}

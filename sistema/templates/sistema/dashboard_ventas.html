@@ -1,33 +1,200 @@
 {% extends 'sistema/base.html' %}
 
-{% block title %}Punto de Venta - POS Refaccionaria{% endblock %}
+{% block title %}Panel de Vendedor - POS Refaccionaria{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12 mb-4">
-        <h2><i class="fa-solid fa-cash-register text-success me-2"></i>Caja y Punto de Venta</h2>
-        <p class="text-muted">Módulo principal para facturación, cotizaciones y ventas rápidas.</p>
+<div class="container-fluid py-2">
+    <!-- Header principal (Limpio, sin botones duplicados arriba) -->
+    <div class="mb-4">
+        <h2 class="h3 fw-bold mb-0 text-dark">
+            <i class="fa-solid fa-cash-register text-success me-2"></i>Panel del Vendedor
+        </h2>
+        <p class="text-muted mb-0">Resumen operativo de tu turno y balance general de ventas.</p>
+    </div>
+
+    <!-- TARJETAS DE MÉTRICAS DEL TURNO (KPIs) -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fw-bold small text-uppercase">Cobrado Hoy en Turno</span>
+                            <h3 class="fw-bold text-success mb-0 mt-1">${{ total_monto_hoy|default:"0.00" }}</h3>
+                            <small class="text-muted">Total acumulado en caja</small>
+                        </div>
+                        <div class="bg-success-subtle p-3 rounded-circle text-success">
+                            <i class="fa-solid fa-sack-dollar fs-3"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm border-start border-4 border-primary h-100">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fw-bold small text-uppercase">Ventas / Notas Cobradas</span>
+                            <h3 class="fw-bold text-dark mb-0 mt-1">{{ num_ventas_hoy|default:"0" }}</h3>
+                            <small class="text-primary fw-bold">Transacciones realizadas</small>
+                        </div>
+                        <div class="bg-primary-subtle p-3 rounded-circle text-primary">
+                            <i class="fa-solid fa-receipt fs-3"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm border-start border-4 border-info h-100">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-muted fw-bold small text-uppercase">Cotizaciones Emitidas</span>
+                            <h3 class="fw-bold text-dark mb-0 mt-1">{{ cotizaciones_vendedor|default:"0" }}</h3>
+                            <small class="text-info fw-bold">Presupuestos a clientes</small>
+                        </div>
+                        <div class="bg-info-subtle p-3 rounded-circle text-info">
+                            <i class="fa-solid fa-file-invoice-dollar fs-3"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN CENTRAL: GRÁFICA + OPERACIONES RÁPIDAS -->
+    <div class="row g-4 mb-4">
+        <!-- Gráfica de Rendimiento del Vendedor -->
+        <div class="col-12 col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between border-0">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-chart-line text-primary me-2"></i>Comportamiento de Ventas en el Turno
+                    </h5>
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Hoy</span>
+                </div>
+                <div class="card-body">
+                    <canvas id="graficaVentasTurno" style="max-height: 280px;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Acciones Directas Unificadas -->
+        <div class="col-12 col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 border-0">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-bolt text-warning me-2"></i>Operaciones Rápidas
+                    </h5>
+                </div>
+                <div class="card-body d-flex flex-column gap-3">
+                    <a href="{% url 'pos_ventas' %}" class="btn btn-success py-3 fw-bold text-start d-flex align-items-center justify-content-between shadow-sm">
+                        <span><i class="fa-solid fa-cash-register fs-5 me-2"></i> Abrir Nueva Venta</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+
+                    <a href="{% url 'lista_cotizaciones' %}" class="btn btn-outline-primary py-3 fw-bold text-start d-flex align-items-center justify-content-between">
+                        <span><i class="fa-solid fa-file-invoice-dollar fs-5 me-2"></i> Mis Cotizaciones</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
+
+                    <button class="btn btn-outline-danger py-3 fw-bold text-start d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#modalCorteCaja">
+                        <span><i class="fa-solid fa-receipt fs-5 me-2"></i> Realizar Corte de Turno</span>
+                        <i class="fa-solid fa-print"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="row g-4">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm text-center p-3">
-            <div class="card-body">
-                <i class="fa-solid fa-cart-shopping fa-3x text-success mb-3"></i>
-                <h5 class="card-title fw-bold">Nueva Venta</h5>
-                <p class="card-text text-muted">Realizar cobros, buscar repuestos y escanear SKUs.</p>
+<!-- MODAL PARA CORTE DE CAJA -->
+<div class="modal fade" id="modalCorteCaja" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold">
+                    <i class="fa-solid fa-calculator text-warning me-2"></i>Corte de Caja / Resumen de Turno
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm text-center p-3">
-            <div class="card-body">
-                <i class="fa-solid fa-file-invoice-dollar fa-3x text-primary mb-3"></i>
-                <h5 class="card-title fw-bold">Cotizaciones</h5>
-                <p class="card-text text-muted">Generar y consultar presupuestos para clientes.</p>
+            <div class="modal-body p-4">
+                <div class="text-center mb-4">
+                    <span class="text-muted small text-uppercase">Cajero en Turno</span>
+                    <h5 class="fw-bold text-dark">{{ request.user.get_full_name|default:request.user.username }}</h5>
+                    <span class="badge bg-secondary">{{ request.user.rol.nombre|default:"Vendedor" }}</span>
+                </div>
+
+                <ul class="list-group list-group-flush border-top border-bottom mb-4">
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                        <span class="text-muted"><i class="fa-solid fa-receipt me-2 text-primary"></i>Total de Notas Procesadas</span>
+                        <span class="fw-bold fs-6">{{ num_ventas_hoy }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                        <span class="text-muted"><i class="fa-solid fa-file-invoice me-2 text-info"></i>Cotizaciones Realizadas</span>
+                        <span class="fw-bold fs-6">{{ cotizaciones_vendedor }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-light">
+                        <span class="fw-bold text-dark"><i class="fa-solid fa-sack-dollar me-2 text-success"></i>TOTAL EN CAJA (EFECTIVO)</span>
+                        <span class="fw-bold fs-4 text-success">${{ total_monto_hoy|default:"0.00" }}</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-danger fw-bold" onclick="window.print()">
+                    <i class="fa-solid fa-print me-1"></i> Imprimir Reporte de Corte
+                </button>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Chart.js para la Gráfica -->
+<script src="https://cdn.jsdelivr.net/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const ctx = document.getElementById('graficaVentasTurno').getContext('2d');
+    
+    const labels = {{ labels_ventas_turno|safe|default:"[]" }};
+    const dataVentas = {{ data_ventas_turno|safe|default:"[]" }};
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels.length ? labels : ['09:00', '11:00', '13:00', '15:00', '17:00'],
+            datasets: [{
+                label: 'Monto Cobrado ($)',
+                data: dataVentas.length ? dataVentas : [0, 0, 0, 0, 0],
+                borderColor: '#198754',
+                backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4,
+                pointBackgroundColor: '#198754'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) { return '$' + value; }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
 {% endblock %}

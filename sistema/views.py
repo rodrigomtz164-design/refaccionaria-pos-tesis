@@ -1,12 +1,12 @@
 import json
 from decimal import Decimal
+from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, F
 from django.http import JsonResponse, HttpResponse
 from django.db import transaction
 from django.utils import timezone
-from datetime import timedelta
 
 from .models import (
     Producto, Categoria, MarcaAuto, ModeloAuto, 
@@ -15,40 +15,43 @@ from .models import (
 from .decorators import admin_required, almacen_required, vendedor_required
 
 
+def get_rango_dia_local():
+    """Devuelve el inicio y fin del día actual en hora local exacta para evitar fallos de timezone con MySQL."""
+    ahora_local = timezone.localtime(timezone.now())
+    inicio_dia = timezone.make_aware(datetime.combine(ahora_local.date(), time.min))
+    fin_dia = timezone.make_aware(datetime.combine(ahora_local.date(), time.max))
+    return inicio_dia, fin_dia, ahora_local.date()
+
+
 @login_required
 def dashboard(request):
-    """
-    Redirige al panel correspondiente según el rol del usuario logueado.
-    """
     usuario = request.user
-    
     if usuario.rol and usuario.rol.nombre == 'Administrador':
         return dashboard_admin(request)
     elif usuario.rol and usuario.rol.nombre == 'Almacenista':
-        return render(request, 'sistema/dashboard_almacen.html')
+        return dashboard_almacen(request)
     elif usuario.rol and usuario.rol.nombre == 'Vendedor':
-        return render(request, 'sistema/dashboard_ventas.html')
+        return dashboard_ventas(request)
     else:
         return dashboard_admin(request)
 
 
 @admin_required
 def dashboard_admin(request):
-    """
-    Dashboard exclusivo para el Administrador con KPIs, Gráficas y Alertas.
-    """
-    hoy = timezone.now().date()
+    inicio_dia, fin_dia, hoy = get_rango_dia_local()
     
-    # 1. Métricas / KPIs principales
-    total_ventas_hoy = Venta.objects.filter(fecha_venta__date=hoy).aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
-    num_ventas_hoy = Venta.objects.filter(fecha_venta__date=hoy).count()
-    productos_bajo_stock = Producto.objects.filter(stock_actual__lt=3)
+    # Rango exacto de ventas de HOY
+    ventas_hoy_qs = Venta.objects.filter(fecha_venta__range=(inicio_dia, fin_dia))
+    total_ventas_hoy = ventas_hoy_qs.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
+    num_ventas_hoy = ventas_hoy_qs.count()
+    
+    productos_bajo_stock = Producto.objects.filter(stock_actual__lte=F('stock_minimo'))
     cant_bajo_stock = productos_bajo_stock.count()
     cotizaciones_mes = Cotizacion.objects.count()
 
-    # 2. Datos para Gráfica de Ventas
-    ventas_recientes = Venta.objects.order_by('-fecha_venta')[:5]
-    labels_ventas = [v.fecha_venta.strftime("%H:%M") for v in reversed(ventas_recientes)]
+    # Gráfica de Ventas
+    ventas_recientes = Venta.objects.order_by('-fecha_venta')[:10]
+    labels_ventas = [timezone.localtime(v.fecha_venta).strftime("%H:%M") for v in reversed(ventas_recientes)]
     data_ventas = [float(v.total) for v in reversed(ventas_recientes)]
 
     context = {
@@ -57,24 +60,106 @@ def dashboard_admin(request):
         'cant_bajo_stock': cant_bajo_stock,
         'cotizaciones_mes': cotizaciones_mes,
         'productos_bajo_stock': productos_bajo_stock,
-        'labels_ventas': labels_ventas,
-        'data_ventas': data_ventas,
+        'labels_ventas': json.dumps(labels_ventas),
+        'data_ventas': json.dumps(data_ventas),
     }
     return render(request, 'sistema/dashboard_admin.html', context)
 
 
 @almacen_required
+def dashboard_almacen(request):
+    total_productos = Producto.objects.count()
+    productos_bajo = Producto.objects.filter(stock_actual__lte=F('stock_minimo')).select_related('categoria')
+    total_stock_bajo = productos_bajo.count()
+
+    categorias = Categoria.objects.all()
+    cat_nombres = []
+    cat_cantidades = []
+
+    for cat in categorias:
+        count = Producto.objects.filter(categoria=cat).count()
+        if count > 0:
+            cat_nombres.append(cat.nombre)
+            cat_cantidades.append(count)
+
+    context = {
+        'total_productos': total_productos,
+        'total_stock_bajo': total_stock_bajo,
+        'productos_bajo': productos_bajo,
+        'cat_nombres': json.dumps(cat_nombres),
+        'cat_cantidades': json.dumps(cat_cantidades),
+        'categorias': categorias,
+    }
+    return render(request, 'sistema/dashboard_almacen.html', context)
+
+
+@vendedor_required
+def dashboard_ventas(request):
+    inicio_dia, fin_dia, hoy = get_rango_dia_local()
+    
+    ventas_hoy = Venta.objects.filter(vendedor=request.user, fecha_venta__range=(inicio_dia, fin_dia)).order_by('fecha_venta')
+    total_monto_hoy = ventas_hoy.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
+    num_ventas_hoy = ventas_hoy.count()
+    
+    cotizaciones_vendedor = Cotizacion.objects.filter(vendedor=request.user).count()
+
+    labels_ventas_turno = [timezone.localtime(v.fecha_venta).strftime("%H:%M") for v in ventas_hoy]
+    data_ventas_turno = [float(v.total) for v in ventas_hoy]
+
+    context = {
+        'total_monto_hoy': total_monto_hoy,
+        'num_ventas_hoy': num_ventas_hoy,
+        'cotizaciones_vendedor': cotizaciones_vendedor,
+        'labels_ventas_turno': json.dumps(labels_ventas_turno),
+        'data_ventas_turno': json.dumps(data_ventas_turno),
+    }
+    return render(request, 'sistema/dashboard_ventas.html', context)
+
+
+@almacen_required
 def lista_productos(request):
-    """
-    Muestra la tabla general de productos con filtros dinámicos por SKU/nombre,
-    categoría, marca y modelo de auto.
-    Acceso: Administrador y Almacenista.
-    """
+    if request.method == 'POST':
+        try:
+            sku = request.POST.get('sku', '').strip()
+            nombre = request.POST.get('nombre', '').strip()
+            categoria_id = request.POST.get('categoria')
+            precio_venta = Decimal(request.POST.get('precio_venta', '0'))
+            stock_actual = Decimal(request.POST.get('stock_actual', '0'))
+            stock_minimo = Decimal(request.POST.get('stock_minimo', '5'))
+            es_granel = request.POST.get('es_granel') == '1'
+            unidad_medida = request.POST.get('unidad_medida', 'Pieza').strip()
+
+            categoria = Categoria.objects.get(id=categoria_id) if categoria_id else None
+
+            nuevo_prod = Producto.objects.create(
+                sku=sku or None,
+                nombre=nombre,
+                categoria=categoria,
+                precio_venta=precio_venta,
+                stock_actual=stock_actual,
+                stock_minimo=stock_minimo,
+                es_granel=es_granel,
+                unidad_medida=unidad_medida
+            )
+
+            LogAuditoria.objects.create(
+                usuario=request.user,
+                accion=f"Alta de Producto #{nuevo_prod.id}",
+                detalles=f"Producto '{nombre}' (SKU: {sku}) creado con stock {stock_actual} {unidad_medida}"
+            )
+            return redirect('lista_productos')
+        except Exception:
+            pass
+
     productos = Producto.objects.select_related('categoria', 'proveedor').prefetch_related('aplicaciones__marca').all()
 
     query = request.GET.get('q', '').strip()
     categoria_id = request.GET.get('categoria', '')
     marca_id = request.GET.get('marca', '')
+    filtro = request.GET.get('filtro', '')
+
+    if filtro == 'stock_bajo':
+        productos = productos.filter(stock_actual__lte=F('stock_minimo'))
 
     if query:
         productos = productos.filter(
@@ -97,16 +182,13 @@ def lista_productos(request):
         'query': query,
         'categoria_id': categoria_id,
         'marca_id': marca_id,
+        'filtro': filtro,
     }
     return render(request, 'sistema/lista_productos.html', context)
 
 
 @vendedor_required
 def pos_ventas(request):
-    """
-    Vista principal para el Punto de Venta (POS) / Caja Mostrador.
-    Acceso: Administrador y Vendedor.
-    """
     productos = Producto.objects.filter(stock_actual__gt=0).select_related('categoria').prefetch_related('aplicaciones__marca')
     categorias = Categoria.objects.all()
     marcas = MarcaAuto.objects.all()
@@ -121,11 +203,6 @@ def pos_ventas(request):
 
 @vendedor_required
 def procesar_venta(request):
-    """
-    Procesa el cobro de la venta: descuenta el inventario en MySQL,
-    marca la cotización como CONVERTIDA (si aplica) y guarda en auditoría.
-    Acceso: Administrador y Vendedor.
-    """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -183,12 +260,13 @@ def procesar_venta(request):
                     item['producto'].stock_actual -= item['cantidad']
                     item['producto'].save()
 
+                # Marca la cotización como CONVERTIDA de manera explícita
                 if cotizacion_id:
                     try:
-                        cot = Cotizacion.objects.get(id=cotizacion_id)
+                        cot = Cotizacion.objects.get(id=int(cotizacion_id))
                         cot.estado = 'CONVERTIDA'
-                        cot.save()
-                    except Cotizacion.DoesNotExist:
+                        cot.save(update_fields=['estado'])
+                    except (Cotizacion.DoesNotExist, ValueError, TypeError):
                         pass
 
                 LogAuditoria.objects.create(
@@ -213,11 +291,6 @@ def procesar_venta(request):
 
 @almacen_required
 def editar_producto(request, producto_id):
-    """
-    Permite al Almacenista / Administrador actualizar en tiempo real
-    el precio de venta y stock disponible de un producto.
-    Acceso: Administrador y Almacenista.
-    """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -249,16 +322,58 @@ def editar_producto(request, producto_id):
     return JsonResponse({'success': False, 'message': 'Método no permitido.'})
 
 
-# ==========================================
-# VISTAS DE COTIZACIONES Y TICKETS
-# ==========================================
+@vendedor_required
+def lista_ventas(request):
+    """ Historial completo de ventas con opción de consultar/imprimir cada ticket """
+    ventas = Venta.objects.select_related('vendedor').prefetch_related('detalles__producto').order_by('-fecha_venta')
+    
+    query = request.GET.get('q', '').strip()
+    fecha_filtro = request.GET.get('fecha', '').strip()
+
+    if query:
+        ventas = ventas.filter(
+            Q(id__icontains=query) | Q(vendedor__username__icontains=query)
+        )
+
+    if fecha_filtro:
+        try:
+            fecha_obj = datetime.strptime(fecha_filtro, "%Y-%m-%d").date()
+            inicio = timezone.make_aware(datetime.combine(fecha_obj, time.min))
+            fin = timezone.make_aware(datetime.combine(fecha_obj, time.max))
+            ventas = ventas.filter(fecha_venta__range=(inicio, fin))
+        except ValueError:
+            pass
+
+    context = {
+        'ventas': ventas,
+        'query': query,
+        'fecha_filtro': fecha_filtro,
+    }
+    return render(request, 'sistema/lista_ventas.html', context)
+
+
+@vendedor_required
+def corte_caja_view(request):
+    inicio_dia, fin_dia, hoy = get_rango_dia_local()
+    
+    ventas_turno = Venta.objects.filter(fecha_venta__range=(inicio_dia, fin_dia)).order_by('-fecha_venta')
+    cotizaciones_turno = Cotizacion.objects.filter(fecha_creacion__range=(inicio_dia, fin_dia)).count()
+
+    total_cobrado = ventas_turno.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
+    num_notas = ventas_turno.count()
+
+    context = {
+        'total_cobrado': total_cobrado,
+        'num_notas': num_notas,
+        'cotizaciones_turno': cotizaciones_turno,
+        'ventas_turno': ventas_turno,
+        'fecha_corte': hoy,
+    }
+    return render(request, 'sistema/corte_caja.html', context)
+
 
 @vendedor_required
 def guardar_cotizacion(request):
-    """
-    Guarda una cotización generada desde el POS sin descontar inventario.
-    Acceso: Administrador y Vendedor.
-    """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -321,11 +436,7 @@ def guardar_cotizacion(request):
 
 @vendedor_required
 def lista_cotizaciones(request):
-    """
-    Muestra la lista de cotizaciones registradas con sus respectivos estados y vigencia.
-    Acceso: Administrador y Vendedor.
-    """
-    cotizaciones = Cotizacion.objects.select_related('vendedor').prefetch_related('detalles').order_by('-fecha_creacion')
+    cotizaciones = Cotizacion.objects.select_related('vendedor').prefetch_related('detalles').exclude(estado__in=['CONVERTIDA', 'PROCESADA']).order_by('-fecha_creacion')
     
     query = request.GET.get('q', '').strip()
     if query:
@@ -348,10 +459,6 @@ def lista_cotizaciones(request):
 
 @vendedor_required
 def generar_cotizacion_pdf(request, cotizacion_id):
-    """
-    Renderiza la vista previa oficial para impresión o descarga PDF de la cotización.
-    Acceso: Administrador y Vendedor.
-    """
     cotizacion = get_object_or_404(Cotizacion.objects.prefetch_related('detalles__producto'), id=cotizacion_id)
     fecha_expiracion = cotizacion.fecha_creacion + timedelta(hours=24)
 
@@ -364,17 +471,13 @@ def generar_cotizacion_pdf(request, cotizacion_id):
 
 @vendedor_required
 def cargar_cotizacion_pos(request, cotizacion_id):
-    """
-    Recupera una cotización y devuelve sus items con los PRECIOS VIGENTES DEL DÍA.
-    Acceso: Administrador y Vendedor.
-    """
     try:
         cotizacion = get_object_or_404(Cotizacion.objects.prefetch_related('detalles__producto'), id=cotizacion_id)
         
-        if not cotizacion.es_valida:
+        if cotizacion.estado in ['CONVERTIDA', 'PROCESADA']:
             return JsonResponse({
                 'success': False, 
-                'message': 'Esta cotización ha superado las 24 horas de vigencia y está vencida.'
+                'message': 'Esta cotización ya fue convertida en una venta anterior.'
             })
 
         items = []
@@ -413,16 +516,12 @@ def cargar_cotizacion_pos(request, cotizacion_id):
 
 @vendedor_required
 def imprimir_ticket_venta(request, venta_id):
-    """
-    Renderiza la plantilla en formato de Ticket de Venta Térmico para su impresión directa.
-    Acceso: Administrador y Vendedor.
-    """
     venta = get_object_or_404(Venta.objects.prefetch_related('detalles__producto').select_related('vendedor'), id=venta_id)
     
     paga_con = request.GET.get('paga_con', Decimal('0.00'))
     try:
         paga_con = Decimal(str(paga_con))
-    except:
+    except Exception:
         paga_con = venta.total
 
     cambio = paga_con - venta.total if paga_con >= venta.total else Decimal('0.00')
@@ -435,26 +534,14 @@ def imprimir_ticket_venta(request, venta_id):
     return render(request, 'sistema/ticket_venta.html', context)
 
 
-# ==========================================
-# VISTAS DE ADMINISTRACIÓN INTERNA
-# ==========================================
-
 @admin_required
 def lista_usuarios(request):
-    """
-    Muestra la lista de usuarios registrados dentro del diseño del sistema.
-    Acceso: Solo Administrador.
-    """
     usuarios = Usuario.objects.select_related('rol').all()
     return render(request, 'sistema/lista_usuarios.html', {'usuarios': usuarios})
 
 
 @admin_required
 def crear_usuario(request):
-    """
-    Crea un nuevo usuario directamente en la interfaz del ERP.
-    Acceso: Solo Administrador.
-    """
     error = None
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -487,14 +574,8 @@ def crear_usuario(request):
 
 @admin_required
 def editar_usuario(request, usuario_id):
-    """
-    Permite modificar los datos, rol y estado de un usuario existente.
-    Protege a los superusuarios para evitar su modificación o desactivación accidental.
-    Acceso: Solo Administrador.
-    """
     usuario_editar = get_object_or_404(Usuario, id=usuario_id)
 
-    # 🛑 CANDADO DE SEGURIDAD: Si es superusuario, redirige a la lista
     if usuario_editar.is_superuser:
         return redirect('lista_usuarios')
 
@@ -539,9 +620,5 @@ def editar_usuario(request, usuario_id):
 
 @admin_required
 def lista_auditoria(request):
-    """
-    Muestra el historial de auditoría dentro del diseño del sistema.
-    Acceso: Solo Administrador.
-    """
     logs = LogAuditoria.objects.select_related('usuario').order_by('-fecha_hora')[:100]
     return render(request, 'sistema/lista_auditoria.html', {'logs': logs})

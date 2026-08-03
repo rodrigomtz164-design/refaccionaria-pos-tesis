@@ -3,131 +3,136 @@
 {% block title %}Catálogo de Productos - Refaccionaria Los Paddys{% endblock %}
 
 {% block content %}
-<div class="row mb-3 align-items-center">
-    <div class="col-md-6">
-        <h2 class="fw-bold"><i class="fa-solid fa-boxes-stacked text-primary me-2"></i>Catálogo de Refacciones</h2>
-        <p class="text-muted mb-0">Listado general e inventario de Refaccionaria Los Paddys</p>
+<div class="container-fluid py-2">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-boxes-stacked text-primary me-2"></i>Catálogo de Refacciones
+            </h2>
+            <p class="text-muted mb-0">Listado general de inventario, existencias y compatibilidad.</p>
+        </div>
     </div>
-</div>
 
-<!-- Barra de Filtros Rápidos -->
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-body bg-white rounded">
-        <form method="get" class="row g-3" id="filterForm">
-            <div class="col-md-4 position-relative" id="busquedaContainer">
-                <label for="q" class="form-label font-weight-bold">Búsqueda rápida</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                    <input type="text" name="q" id="q" class="form-control" placeholder="Buscar por SKU o nombre..." value="{{ query }}" autocomplete="off">
+    <!-- Barra de Filtros Rápidos -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body bg-white rounded p-3">
+            <form method="get" class="row g-3" id="filterForm">
+                <div class="col-12 col-md-4 position-relative" id="busquedaContainer">
+                    <label for="q" class="form-label fw-bold small text-muted text-uppercase">Búsqueda Rápida</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                        <input type="text" name="q" id="q" class="form-control border-start-0" placeholder="Buscar por SKU o nombre..." value="{{ query }}" autocomplete="off">
+                    </div>
                 </div>
-            </div>
 
-            <div class="col-md-3">
-                <label for="categoria" class="form-label font-weight-bold">Categoría</label>
-                <select name="categoria" id="categoria" class="form-select">
-                    <option value="">Todas las categorías</option>
-                    {% for cat in categorias %}
-                        <option value="{{ cat.id }}" {% if categoria_id == cat.id|stringformat:"s" %}selected{% endif %}>
-                            {{ cat.nombre }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label for="categoria" class="form-label fw-bold small text-muted text-uppercase">Categoría</label>
+                    <select name="categoria" id="categoria" class="form-select">
+                        <option value="">Todas las categorías</option>
+                        {% for cat in categorias %}
+                            <option value="{{ cat.id }}" {% if categoria_id == cat.id|stringformat:"s" %}selected{% endif %}>
+                                {{ cat.nombre }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-            <div class="col-md-3">
-                <label for="marca" class="form-label font-weight-bold">Marca de Auto</label>
-                <select name="marca" id="marca" class="form-select">
-                    <option value="">Todas las marcas</option>
-                    {% for m in marcas %}
-                        <option value="{{ m.id }}" {% if marca_id == m.id|stringformat:"s" %}selected{% endif %}>
-                            {{ m.nombre }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                    <label for="marca" class="form-label fw-bold small text-muted text-uppercase">Marca de Auto</label>
+                    <select name="marca" id="marca" class="form-select">
+                        <option value="">Todas las marcas</option>
+                        {% for m in marcas %}
+                            <option value="{{ m.id }}" {% if marca_id == m.id|stringformat:"s" %}selected{% endif %}>
+                                {{ m.nombre }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
 
-            <div class="col-md-2 d-flex align-items-end">
-                <button type="submit" class="btn btn-primary w-100 fw-bold">
-                    <i class="fa-solid fa-filter me-1"></i> Filtrar
-                </button>
-            </div>
-        </form>
+                <div class="col-12 col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">
+                        <i class="fa-solid fa-filter me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 
-<!-- Tabla General de Productos -->
-<div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-dark">
-                    <tr>
-                        <th>SKU</th>
-                        <th>Producto</th>
-                        <th>Categoría</th>
-                        <th>Compatibilidad</th>
-                        <th>Precio Venta</th>
-                        <th>Stock</th>
-                        <th>Tipo</th>
-                        <th class="text-center">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for producto in productos %}
-                    <tr id="fila-producto-{{ producto.id }}">
-                        <td class="fw-bold">{{ producto.sku|default:"SIN SKU" }}</td>
-                        <td>
-                            <div class="fw-bold product-name">{{ producto.nombre }}</div>
-                            <small class="text-muted">{{ producto.descripcion|truncatechars:40|default:"" }}</small>
-                        </td>
-                        <td><span class="badge bg-info text-dark">{{ producto.categoria.nombre }}</span></td>
-                        <td>
-                            {% for app in producto.aplicaciones.all %}
-                                <span class="badge bg-secondary mb-1">
-                                    {{ app.marca.nombre }} {{ app.nombre }} ({{ app.anio_inicio }}-{{ app.anio_fin }})
-                                </span>
-                            {% empty %}
-                                <span class="text-muted small">Universal / Sin asignar</span>
-                            {% endfor %}
-                        </td>
-                        <td class="fw-bold text-success" id="precio-txt-{{ producto.id }}">${{ producto.precio_venta }}</td>
-                        <td id="stock-col-{{ producto.id }}">
-                            {% if producto.stock_actual <= producto.stock_minimo %}
-                                <span class="badge bg-danger" id="stock-badge-{{ producto.id }}">{{ producto.stock_actual }} {{ producto.unidad_medida }} (Bajo)</span>
-                            {% else %}
-                                <span class="badge bg-success" id="stock-badge-{{ producto.id }}">{{ producto.stock_actual }} {{ producto.unidad_medida }}</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if producto.es_granel %}
-                                <span class="badge bg-warning text-dark"><i class="fa-solid fa-fill-drip"></i> Granel</span>
-                            {% else %}
-                                <span class="badge bg-light text-dark border">Pieza</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            <button class="btn btn-sm btn-outline-warning fw-bold btn-editar-modal"
-                                    data-id="{{ producto.id }}"
-                                    data-sku="{{ producto.sku|default:'SIN SKU' }}"
-                                    data-nombre="{{ producto.nombre }}"
-                                    data-precio="{{ producto.precio_venta }}"
-                                    data-stock="{{ producto.stock_actual }}"
-                                    data-granel="{% if producto.es_granel %}1{% else %}0{% endif %}"
-                                    data-unidad="{{ producto.unidad_medida }}">
-                                <i class="fa-solid fa-pen-to-square me-1"></i> Editar
-                            </button>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="8" class="text-center py-4 text-muted">
-                            <i class="fa-solid fa-box-open fa-2x mb-2 d-block"></i>
-                            No se encontraron productos con los filtros seleccionados.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <!-- Tabla General de Productos -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr class="small text-muted">
+                            <th class="ps-3">SKU</th>
+                            <th>Producto</th>
+                            <th>Categoría</th>
+                            <th>Compatibilidad</th>
+                            <th>Precio Venta</th>
+                            <th>Stock</th>
+                            <th>Tipo</th>
+                            <th class="text-center pe-3">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for producto in productos %}
+                        <tr id="fila-producto-{{ producto.id }}">
+                            <td class="ps-3 fw-bold text-dark">{{ producto.sku|default:"SIN SKU" }}</td>
+                            <td>
+                                <div class="fw-bold text-dark product-name">{{ producto.nombre }}</div>
+                                <small class="text-muted">{{ producto.descripcion|truncatechars:40|default:"" }}</small>
+                            </td>
+                            <td><span class="badge bg-info-subtle text-info border border-info-subtle">{{ producto.categoria.nombre }}</span></td>
+                            <td>
+                                {% for app in producto.aplicaciones.all %}
+                                    <span class="badge bg-secondary-subtle text-secondary border mb-1">
+                                        {{ app.marca.nombre }} {{ app.nombre }} ({{ app.anio_inicio }}-{{ app.anio_fin }})
+                                    </span>
+                                {% empty %}
+                                    <span class="text-muted small">Universal / Sin asignar</span>
+                                {% endfor %}
+                            </td>
+                            <td class="fw-bold text-success" id="precio-txt-{{ producto.id }}">${{ producto.precio_venta }}</td>
+                            <td id="stock-col-{{ producto.id }}">
+                                {% if producto.stock_actual <= producto.stock_minimo %}
+                                    <span class="badge bg-danger" id="stock-badge-{{ producto.id }}">{{ producto.stock_actual }} {{ producto.unidad_medida }} (Bajo)</span>
+                                {% else %}
+                                    <span class="badge bg-success" id="stock-badge-{{ producto.id }}">{{ producto.stock_actual }} {{ producto.unidad_medida }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if producto.es_granel %}
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-fill-drip me-1"></i>Granel</span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark border">Pieza</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center pe-3">
+                                <button class="btn btn-sm btn-outline-warning fw-bold text-dark btn-editar-modal"
+                                        data-id="{{ producto.id }}"
+                                        data-sku="{{ producto.sku|default:'SIN SKU' }}"
+                                        data-nombre="{{ producto.nombre }}"
+                                        data-precio="{{ producto.precio_venta }}"
+                                        data-stock="{{ producto.stock_actual }}"
+                                        data-granel="{% if producto.es_granel %}1{% else %}0{% endif %}"
+                                        data-unidad="{{ producto.unidad_medida }}">
+                                    <i class="fa-solid fa-pen-to-square me-1"></i> Editar
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-muted">
+                                <i class="fa-solid fa-box-open fa-2x mb-2 d-block"></i>
+                                No se encontraron productos con los filtros seleccionados.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
@@ -137,7 +142,9 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title fw-bold" id="modalEditarProductoLabel"><i class="fa-solid fa-boxes-packing me-2 text-warning"></i>Editar Refacción</h5>
+                <h5 class="modal-title fw-bold" id="modalEditarProductoLabel">
+                    <i class="fa-solid fa-boxes-packing me-2 text-warning"></i>Editar Refacción
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
