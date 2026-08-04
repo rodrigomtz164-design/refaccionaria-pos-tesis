@@ -1,8 +1,10 @@
+import openpyxl
 import json
 from decimal import Decimal
 from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.db.models import Q, Sum, F
 from django.http import JsonResponse, HttpResponse
 from django.db import transaction
@@ -104,6 +106,7 @@ def dashboard_ventas(request):
     
     cotizaciones_vendedor = Cotizacion.objects.filter(vendedor=request.user).count()
 
+    # Formateo adecuado para Chart.js
     labels_ventas_turno = [timezone.localtime(v.fecha_venta).strftime("%H:%M") for v in ventas_hoy]
     data_ventas_turno = [float(v.total) for v in ventas_hoy]
 
@@ -250,6 +253,14 @@ def procesar_venta(request):
                 items_a_procesar = []
 
                 for item in carrito:
+                    # Si es un pedido especial temporal del catálogo externo, no busca ID en BD
+                    if item.get('es_especial'):
+                        precio_unitario = Decimal(str(item['precio']))
+                        cant = Decimal(str(item['cantidad']))
+                        subtotal_item = precio_unitario * cant
+                        subtotal_venta += subtotal_item
+                        continue
+
                     producto = Producto.objects.select_for_update().get(id=item['id'])
                     cant = Decimal(str(item['cantidad']))
 
@@ -420,19 +431,48 @@ def guardar_cotizacion(request):
                 subtotal_cotizacion = Decimal('0.00')
                 detalles_a_crear = []
 
+                # Categoría por defecto si no existe
+                categoria_default = Categoria.objects.first()
+                if not categoria_default:
+                    categoria_default, _ = Categoria.objects.get_or_create(nombre='Varios')
+
+                # Producto comodín BLINDADO con todos los campos posibles requeridos
+                producto_especial_comodin, _ = Producto.objects.get_or_create(
+                    sku='PEDIDO-ESPECIAL',
+                    defaults={
+                        'nombre': 'Refacción Especial (Proveedor Externo)',
+                        'categoria': categoria_default,
+                        'precio_costo': Decimal('0.00'),
+                        'precio_venta': Decimal('0.00'),
+                        'stock_actual': Decimal('999'),
+                        'stock_minimo': Decimal('0'),
+                        'es_granel': False,
+                        'unidad_medida': 'Pieza',
+                        'activo': True
+                    }
+                )
+
                 for item in carrito:
-                    producto = Producto.objects.get(id=item['id'])
                     cant = Decimal(str(item['cantidad']))
                     precio = Decimal(str(item['precio']))
                     subtotal_item = cant * precio
                     subtotal_cotizacion += subtotal_item
 
-                    detalles_a_crear.append({
-                        'producto': producto,
-                        'cantidad': cant,
-                        'precio_cotizado': precio,
-                        'subtotal': subtotal_item
-                    })
+                    if item.get('es_especial'):
+                        detalles_a_crear.append({
+                            'producto': producto_especial_comodin,
+                            'cantidad': cant,
+                            'precio_cotizado': precio,
+                            'subtotal': subtotal_item
+                        })
+                    else:
+                        producto = Producto.objects.get(id=item['id'])
+                        detalles_a_crear.append({
+                            'producto': producto,
+                            'cantidad': cant,
+                            'precio_cotizado': precio,
+                            'subtotal': subtotal_item
+                        })
 
                 cotizacion = Cotizacion.objects.create(
                     vendedor=request.user,
@@ -464,7 +504,6 @@ def guardar_cotizacion(request):
             return JsonResponse({'success': False, 'message': str(e)})
 
     return JsonResponse({'success': False, 'message': 'Método no permitido.'})
-
 
 @vendedor_required
 def lista_cotizaciones(request):
@@ -517,27 +556,45 @@ def cargar_cotizacion_pos(request, cotizacion_id):
 
         for det in cotizacion.detalles.all():
             prod = det.producto
-            precio_actual = prod.precio_venta
             
-            if precio_actual != det.precio_cotizado:
-                hubo_cambio_precio = True
+            # Si es un producto real de la BD y NO es el comodín
+            if prod and prod.sku != 'PEDIDO-ESPECIAL':
+                precio_actual = prod.precio_venta
+                if precio_actual != det.precio_cotizado:
+                    hubo_cambio_precio = True
 
-            items.append({
-                'id': prod.id,
-                'sku': prod.sku or 'SIN-SKU',
-                'nombre': prod.nombre,
-                'precio': float(precio_actual),
-                'precio_original_cotizado': float(det.precio_cotizado),
-                'cantidad': float(det.cantidad),
-                'stock_disponible': float(prod.stock_actual),
-                'es_granel': prod.es_granel,
-                'unidad_medida': prod.unidad_medida
-            })
+                items.append({
+                    'id': prod.id,
+                    'sku': prod.sku or 'SIN-SKU',
+                    'nombre': prod.nombre,
+                    'precio': float(precio_actual),
+                    'precio_original_cotizado': float(det.precio_cotizado),
+                    'cantidad': float(det.cantidad),
+                    'stock_disponible': float(prod.stock_actual),
+                    'es_granel': prod.es_granel,
+                    'unidad_medida': prod.unidad_medida,
+                    'es_especial': False
+                })
+            else:
+                # Si es un ítem de pedido especial (o comodín)
+                items.append({
+                    'id': f'ESP-{det.id}',
+                    'sku': 'ESP',
+                    'nombre': f'[PEDIDO ESPECIAL] Refacción Cotizada #{det.id}',
+                    'precio': float(det.precio_cotizado),
+                    'precio_original_cotizado': float(det.precio_cotizado),
+                    'cantidad': float(det.cantidad),
+                    'stock_disponible': 999,
+                    'es_granel': False,
+                    'unidad_medida': 'Pieza',
+                    'es_especial': True
+                })
 
         return JsonResponse({
             'success': True,
             'cotizacion_id': cotizacion.id,
             'cliente_nombre': cotizacion.cliente_nombre,
+            'cliente_telefono': cotizacion.cliente_telefono,
             'items': items,
             'hubo_cambio_precio': hubo_cambio_precio
         })
@@ -654,3 +711,102 @@ def editar_usuario(request, usuario_id):
 def lista_auditoria(request):
     logs = LogAuditoria.objects.select_related('usuario').order_by('-fecha_hora')[:100]
     return render(request, 'sistema/lista_auditoria.html', {'logs': logs})
+
+
+@almacen_required
+def cargar_catalogo_proveedor(request):
+    """ Permite cargar masivamente listas de precios externas (Excel) en ListaPrecioProveedor """
+    if request.method == 'POST' and request.FILES.get('archivo_excel'):
+        excel_file = request.FILES['archivo_excel']
+        
+        # Validar extensión del archivo
+        if not excel_file.name.endswith(('.xlsx', '.xls')):
+            messages.error(request, 'Por favor, selecciona un archivo de Excel válido (.xlsx o .xls).')
+            return redirect('cargar_catalogo_proveedor')
+
+        try:
+            wb = openpyxl.load_workbook(excel_file, data_only=True)
+            sheet = wb.active
+            
+            registros_creados = 0
+            registros_actualizados = 0
+
+            # Mapeo de columnas (empezando en Fila 2 para omitir encabezados):
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                if not row or not row[0]:  # Ignorar filas vacías
+                    continue
+                
+                prov_nombre = str(row[0]).strip() if row[0] else ''
+                codigo_ref = str(row[1]).strip() if len(row) > 1 and row[1] else ''
+                nombre_ref = str(row[2]).strip() if len(row) > 2 and row[2] else ''
+                
+                try:
+                    precio_ref = Decimal(str(row[3])) if len(row) > 3 and row[3] is not None else Decimal('0.00')
+                except Exception:
+                    precio_ref = Decimal('0.00')
+
+                tel_contacto = str(row[4]).strip() if len(row) > 4 and row[4] else ''
+                notas_txt = str(row[5]).strip() if len(row) > 5 and row[5] else ''
+
+                if not prov_nombre or not nombre_ref:
+                    continue
+
+                obj, created = ListaPrecioProveedor.objects.update_or_create(
+                    proveedor_negocio=prov_nombre,
+                    codigo_refaccion=codigo_ref,
+                    defaults={
+                        'nombre_refaccion': nombre_ref,
+                        'precio_referencia': precio_ref,
+                        'telefono_contacto': tel_contacto,
+                        'notas': notas_txt
+                    }
+                )
+
+                if created:
+                    registros_creados += 1
+                else:
+                    registros_actualizados += 1
+
+            LogAuditoria.objects.create(
+                usuario=request.user,
+                accion="Carga Masiva Excel Proveedores",
+                detalles=f"Se procesaron {registros_creados + registros_actualizados} registros ({registros_creados} creados, {registros_actualizados} actualizados)."
+            )
+
+            messages.success(
+                request, 
+                f'¡Proceso completado! Se registraron {registros_creados} refacciones nuevas y se actualizaron {registros_actualizados}.'
+            )
+            return redirect('cargar_catalogo_proveedor')
+
+        except Exception as e:
+            messages.error(request, f'Ocurrió un error al procesar el archivo Excel: {str(e)}')
+            return redirect('cargar_catalogo_proveedor')
+
+    return render(request, 'sistema/cargar_excel.html')
+
+
+@vendedor_required
+def buscar_proveedores_ajax(request):
+    """ Consulta AJAX en tiempo real de productos externos/proveedores desde el POS """
+    query = request.GET.get('q', '').strip()
+    resultados = []
+
+    if query:
+        items = ListaPrecioProveedor.objects.filter(
+            Q(codigo_refaccion__icontains=query) |
+            Q(nombre_refaccion__icontains=query) |
+            Q(proveedor_negocio__icontains=query)
+        )[:30]  # Limitar a 30 resultados para máximo rendimiento
+
+        for item in items:
+            resultados.append({
+                'proveedor': item.proveedor_negocio,
+                'codigo': item.codigo_refaccion or 'S/C',
+                'nombre': item.nombre_refaccion,
+                'precio': f"{item.precio_referencia:.2f}",
+                'telefono': item.telefono_contacto or '',
+                'notas': item.notas or 'Sin notas'
+            })
+
+    return JsonResponse({'resultados': resultados})

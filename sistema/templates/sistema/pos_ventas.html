@@ -92,12 +92,17 @@
 <div class="row g-3">
     <!-- COLUMNA IZQUIERDA: Búsqueda y Catálogo de Productos -->
     <div class="col-lg-7">
-        <!-- Buscador Inteligente -->
+        <!-- Buscador Inteligente + Botón de Proveedores Externos -->
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-body p-3">
-                <label for="pos_busqueda" class="form-label fw-bold text-dark mb-2">
-                    <i class="fa-solid fa-barcode text-primary me-1"></i> Buscar Refacción (SKU o Nombre)
-                </label>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label for="pos_busqueda" class="form-label fw-bold text-dark mb-0">
+                        <i class="fa-solid fa-barcode text-primary me-1"></i> Buscar Refacción (SKU o Nombre)
+                    </label>
+                    <button type="button" class="btn btn-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalProveedoresExternos">
+                        <i class="fa-solid fa-truck-field me-1"></i> Buscar Proveedores Externos
+                    </button>
+                </div>
                 <div class="position-relative" id="posBuscadorContainer">
                     <div class="input-group input-group-lg">
                         <span class="input-group-text bg-primary text-white border-primary">
@@ -316,12 +321,71 @@
     </div>
 </div>
 
+<!-- MODAL BUSCADOR DE PROVEEDORES EXTERNOS -->
+<div class="modal fade" id="modalProveedoresExternos" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-warning text-dark fw-bold">
+                <h5 class="modal-title fw-bold">
+                    <i class="fa-solid fa-truck-field me-2"></i>Consulta de Catálogos de Proveedores Externos
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-2 mb-3">
+                    <div class="col-md-9">
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text bg-light text-secondary border">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </span>
+                            <input type="text" id="inputBuscarProveedor" class="form-control" placeholder="Escribe refacción, código o marca del proveedor..." autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-dark btn-lg w-100 fw-bold" id="btnBuscarProveedor">
+                            <i class="fa-solid fa-search me-1"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive style-scroll" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover align-middle border mb-0" id="tablaResultadosProveedor">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Proveedor / Negocio</th>
+                                <th>Código / Refacción</th>
+                                <th>Nombre / Descripción</th>
+                                <th class="text-end">Precio Ref.</th>
+                                <th>Teléfono</th>
+                                <th>Notas</th>
+                                <th class="text-center" style="width: 110px;">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bodyResultadosProveedor">
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    <i class="fa-solid fa-search fa-2x mb-2 opacity-50 d-block"></i>
+                                    Ingresa un término de búsqueda para consultar en la base de datos externa.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between">
+                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i> Precios de referencia sujetos a cambios por el proveedor externo.</small>
+                <button type="button" class="btn btn-secondary fw-semibold" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JavaScript para la Lógica Interactiva de Caja POS -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let carrito = [];
     let porcentajeDescuento = 0;
-    let cotizacionCargadaId = null; // Variable para almacenar ID de cotización activa
+    let cotizacionCargadaId = null;
 
     const inputBusqueda = document.getElementById('pos_busqueda');
     const posBuscadorContainer = document.getElementById('posBuscadorContainer');
@@ -342,13 +406,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const modalCotizacionEl = document.getElementById('modalCotizacion');
     const modalCotizacion = new bootstrap.Modal(modalCotizacionEl);
+    const modalProvEl = document.getElementById('modalProveedoresExternos');
 
     // --- REVISAR SI HAY UNA COTIZACIÓN RECUPERADA DESDE LA LISTA ---
     const cotizacionPendiente = localStorage.getItem('cotizacion_pendiente');
     if (cotizacionPendiente) {
         try {
             const dataCot = JSON.parse(cotizacionPendiente);
-            // Extraer el ID de la cotización que proviene del backend
             cotizacionCargadaId = dataCot.cotizacion_id || dataCot.id || null;
 
             if (cotizacionCargadaId) {
@@ -356,26 +420,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 lblCotizacionId.textContent = `#${cotizacionCargadaId}`;
             }
 
-            dataCot.items.forEach(it => {
-                carrito.push({
-                    id: String(it.id),
-                    sku: it.sku,
-                    nombre: it.nombre,
-                    precio: parseFloat(it.precio),
-                    granel: it.es_granel,
-                    unidad: it.unidad_medida,
-                    stock: parseFloat(it.stock_disponible),
-                    cantidad: parseFloat(it.cantidad)
+            if (Array.isArray(dataCot.items)) {
+                dataCot.items.forEach(it => {
+                    carrito.push({
+                        id: String(it.id || 'ESP-' + Date.now()),
+                        sku: it.sku || 'S/C',
+                        nombre: it.nombre || 'Producto Cotizado',
+                        precio: parseFloat(it.precio || 0),
+                        granel: Boolean(it.es_granel || it.granel),
+                        unidad: it.unidad_medida || it.unidad || 'Pieza',
+                        stock: parseFloat(it.stock_disponible || it.stock || 999),
+                        cantidad: parseFloat(it.cantidad || 1),
+                        es_especial: Boolean(it.es_especial)
+                    });
                 });
-            });
-            renderizarCarrito();
+            }
+            setTimeout(renderizarCarrito, 50);
         } catch (e) {
             console.error("Error al procesar la cotización desde localStorage", e);
+            localStorage.clear();
         }
     }
 
     btnCancelarCotizacion.addEventListener('click', function() {
-        localStorage.removeItem('cotizacion_pendiente');
+        localStorage.clear();
         cotizacionCargadaId = null;
         bannerCotizacion.style.setProperty('display', 'none', 'important');
         carrito = [];
@@ -471,7 +539,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (prod.granel) {
                 existe.cantidad += 0.5;
             } else {
-                if (existe.cantidad + 1 <= prod.stock) {
+                if (prod.es_especial || existe.cantidad + 1 <= prod.stock) {
                     existe.cantidad += 1;
                 } else {
                     alert('Llegaste al stock máximo disponible para este producto.');
@@ -486,14 +554,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 granel: prod.granel,
                 unidad: prod.unidad,
                 stock: prod.stock,
-                cantidad: prod.granel ? 1.0 : 1
+                cantidad: prod.granel ? 1.0 : (prod.cantidad || 1),
+                es_especial: prod.es_especial || false
             });
         }
         renderizarCarrito();
     }
 
+    // --- FUNCIÓN PÚBLICA PARA AGREGAR PEDIDO ESPECIAL DESDE EL MODAL PROVEEDORES ---
+    window.agregarEspecialAlCarrito = function(codigo, nombre, proveedor, precioCosto) {
+        const precioSugerido = (parseFloat(precioCosto) * 1.20).toFixed(2);
+        const precioVentaStr = prompt(
+            `Costo Proveedor (${proveedor}): $${precioCosto}\n\nIngresa el PRECIO DE VENTA para el cliente:`, 
+            precioSugerido
+        );
+
+        if (precioVentaStr === null) return;
+
+        const precioVenta = parseFloat(precioVentaStr);
+        if (isNaN(precioVenta) || precioVenta <= 0) {
+            alert("Por favor ingresa un precio válido.");
+            return;
+        }
+
+        const itemEspecial = {
+            id: 'ESP-' + Date.now(),
+            sku: codigo || 'S/C',
+            nombre: `[PEDIDO ESPECIAL - ${proveedor}] ${nombre}`,
+            precio: precioVenta,
+            granel: false,
+            unidad: 'Pieza',
+            stock: 999,
+            es_especial: true
+        };
+
+        agregarAlCarrito(itemEspecial);
+
+        if (modalProvEl) {
+            const instance = bootstrap.Modal.getInstance(modalProvEl);
+            if (instance) instance.hide();
+        }
+    };
+
     // --- RENDERIZAR NOTA Y TOTALES ---
     function renderizarCarrito() {
+        if (!carritoBody) return;
+
         if (carrito.length === 0) {
             carritoBody.innerHTML = `
                 <tr id="filaVacia">
@@ -537,7 +643,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const idx = parseInt(this.dataset.index);
                 let val = parseFloat(this.value);
                 if (isNaN(val) || val <= 0) val = 1;
-                if (val > carrito[idx].stock) {
+                if (!carrito[idx].es_especial && val > carrito[idx].stock) {
                     alert('La cantidad supera el stock disponible (' + carrito[idx].stock + ').');
                     val = carrito[idx].stock;
                     this.value = val;
@@ -610,7 +716,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.getElementById('btnVaciarNota').addEventListener('click', function() {
-        localStorage.removeItem('cotizacion_pendiente');
+        localStorage.clear();
         cotizacionCargadaId = null;
         bannerCotizacion.style.setProperty('display', 'none', 'important');
         carrito = [];
@@ -644,13 +750,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 carrito: carrito,
                 descuento: porcentajeDescuento,
                 paga_con: pagaCon,
-                cotizacion_id: cotizacionCargadaId // <--- AQUÍ SE ENVÍA A MYSQL PARA CAMBIAR SU ESTADO A PROCESADA
+                cotizacion_id: cotizacionCargadaId
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                localStorage.removeItem('cotizacion_pendiente'); // Limpiar la memoria tras cobro exitoso
+                // LIMPIEZA ABSOLUTA DE MEMORIA PARA EVITAR PANTALLA NEGRA AL REGRESAR
+                localStorage.clear();
                 window.open(`/ventas/ticket/${data.venta_id}/?paga_con=${pagaCon}`, '_blank');
                 window.location.reload();
             } else {
@@ -700,7 +807,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                localStorage.removeItem('cotizacion_pendiente');
+                localStorage.clear();
                 modalCotizacion.hide();
                 window.open(`/cotizaciones/imprimir/${data.cotizacion_id}/`, '_blank');
                 carrito = [];
@@ -716,6 +823,85 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Ocurrió un error al procesar la cotización.');
             document.getElementById('btnConfirmarCotizacion').disabled = false;
         });
+    });
+
+    // --- BÚSQUEDA DE PROVEEDORES EXTERNOS VIA AJAX ---
+    const inputBuscarProveedor = document.getElementById('inputBuscarProveedor');
+    const btnBuscarProveedor = document.getElementById('btnBuscarProveedor');
+    const bodyResultadosProveedor = document.getElementById('bodyResultadosProveedor');
+
+    function buscarProveedoresExternos() {
+        const query = inputBuscarProveedor.value.trim();
+        if (!query) {
+            bodyResultadosProveedor.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">
+                        Ingresa un término de búsqueda para consultar la base externa.
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        bodyResultadosProveedor.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-4 text-muted">
+                    <i class="fa-solid fa-spinner fa-spin fa-2x me-2 text-warning"></i> Consultando base de proveedores...
+                </td>
+            </tr>`;
+
+        fetch(`{% url 'buscar_proveedores_ajax' %}?q=${encodeURIComponent(query)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.resultados || data.resultados.length === 0) {
+                    bodyResultadosProveedor.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                No se encontraron refacciones externas con "${query}".
+                            </td>
+                        </tr>`;
+                    return;
+                }
+
+                bodyResultadosProveedor.innerHTML = '';
+                data.resultados.forEach(item => {
+                    const tr = document.createElement('tr');
+                    const nomEsc = item.nombre.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const provEsc = item.proveedor.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    const codEsc = item.codigo.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                    tr.innerHTML = `
+                        <td class="fw-bold text-dark">${item.proveedor}</td>
+                        <td><span class="badge bg-light text-dark border font-monospace">${item.codigo}</span></td>
+                        <td>${item.nombre}</td>
+                        <td class="text-end fw-bold text-success amount-display">$${item.precio}</td>
+                        <td>
+                            ${item.telefono ? `<a href="tel:${item.telefono}" class="btn btn-sm btn-outline-success"><i class="fa-solid fa-phone me-1"></i>${item.telefono}</a>` : '<span class="text-muted small">N/A</span>'}
+                        </td>
+                        <td class="small text-muted">${item.notas}</td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-warning btn-sm fw-bold text-dark shadow-sm" 
+                                    onclick="agregarEspecialAlCarrito('${codEsc}', '${nomEsc}', '${provEsc}', ${item.precio})">
+                                <i class="fa-solid fa-plus me-1"></i> Cotizar
+                            </button>
+                        </td>
+                    `;
+                    bodyResultadosProveedor.appendChild(tr);
+                });
+            })
+            .catch(err => {
+                console.error(err);
+                bodyResultadosProveedor.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-danger fw-bold">
+                            Error al conectar con la base de datos de proveedores.
+                        </td>
+                    </tr>`;
+            });
+    }
+
+    btnBuscarProveedor.addEventListener('click', buscarProveedoresExternos);
+    inputBuscarProveedor.addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') buscarProveedoresExternos();
     });
 });
 </script>

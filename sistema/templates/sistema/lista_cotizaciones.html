@@ -121,19 +121,50 @@ function cargarCotizacionEnPOS(cotizacionId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Aseguramos que la cotización contenga la clave explícita cotizacion_id
-            data.cotizacion_id = cotizacionId;
-            localStorage.setItem('cotizacion_pendiente', JSON.stringify(data));
+            // Extraer de donde vengan los ítems (items, detalles o productos)
+            const listaOriginal = data.items || data.detalles || data.productos || [];
+
+            // Mapeo estricto para asegurar compatibilidad total con el POS
+            const itemsProcesados = listaOriginal.map(it => {
+                const prodId = it.producto_id || it.id || ('ESP-' + Date.now());
+                const esEspecial = Boolean(it.es_especial || String(prodId).startsWith('ESP-'));
+                
+                return {
+                    id: String(prodId),
+                    sku: it.sku || it.producto_sku || 'S/C',
+                    nombre: it.nombre || it.producto_nombre || 'Producto Cotizado',
+                    precio: parseFloat(it.precio_unitario || it.precio || 0),
+                    granel: Boolean(it.es_granel || it.granel),
+                    unidad: it.unidad_medida || it.unidad || 'Pieza',
+                    stock: parseFloat(it.stock_actual || it.stock_disponible || it.stock || 999),
+                    cantidad: parseFloat(it.cantidad || 1),
+                    es_especial: esEspecial
+                };
+            });
+
+            // Construir el objeto estandarizado para localStorage
+            const paqueteCotizacion = {
+                cotizacion_id: cotizacionId,
+                cliente_nombre: data.cliente_nombre || '',
+                cliente_telefono: data.cliente_telefono || '',
+                items: itemsProcesados
+            };
+
+            localStorage.setItem('cotizacion_pendiente', JSON.stringify(paqueteCotizacion));
             
-            if(data.hubo_cambio_precio) {
+            if (data.hubo_cambio_precio) {
                 alert('Atención: Algunos precios cambiaron respecto a la cotización original. Se han actualizado a los precios vigentes de hoy.');
             }
+            
             window.location.href = "{% url 'pos_ventas' %}";
         } else {
-            alert('Error: ' + data.message);
+            alert('Error al obtener la cotización: ' + (data.message || 'Error desconocido'));
         }
     })
-    .catch(err => alert('Error al cargar la cotización.'));
+    .catch(err => {
+        console.error('Error AJAX:', err);
+        alert('Ocurrió un error al cargar la cotización.');
+    });
 }
 </script>
 {% endblock %}

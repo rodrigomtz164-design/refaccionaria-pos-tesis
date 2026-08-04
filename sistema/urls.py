@@ -18,6 +18,10 @@ urlpatterns = [
     path('productos/editar/<int:producto_id>/', views.editar_producto, name='editar_producto'),
     path('productos/toggle-estado/<int:producto_id>/', views.toggle_estado_producto, name='toggle_estado_producto'),
 
+    # Carga Masiva de Catálogos / Proveedores
+    path('proveedores/cargar-excel/', views.cargar_catalogo_proveedor, name='cargar_catalogo_proveedor'),
+    path('proveedores/buscar-ajax/', views.buscar_proveedores_ajax, name='buscar_proveedores_ajax'),
+
     # Punto de Venta / Caja Mostrador
     path('pos/', views.pos_ventas, name='pos_ventas'),
     path('pos/procesar-venta/', views.procesar_venta, name='procesar_venta'),
