@@ -29,8 +29,10 @@
         /* Layout Principal */
         #wrapper {
             display: flex;
-            width: 100%;
+            width: 100vw;
+            max-width: 100%;
             align-items: stretch;
+            overflow-x: hidden;
         }
 
         /* Sidebar Styling */
@@ -98,7 +100,8 @@
 
         /* Main Content Styling */
         #content {
-            width: 100%;
+            flex: 1;
+            min-width: 0; /* CRUCIAL: Permite que el flex-child se reduzca sin empujar la pantalla */
             min-height: 100vh;
             transition: all 0.3s;
             display: flex;
@@ -115,6 +118,7 @@
             align-items: center;
             justify-content: space-between;
             border-bottom: 1px solid #e2e8f0;
+            width: 100%;
         }
 
         .user-badge {
@@ -256,9 +260,10 @@
         </header>
 
         <!-- Área de Contenido Dinámico -->
-        <main class="p-4 flex-grow-1">
+        <main class="p-3 p-md-4 flex-grow-1" style="min-width: 0; overflow-x: hidden;">
             {% block content %}
             <!-- Aquí se inyecta la vista correspondiente -->
+            {% block extra_content %}{% endblock %}
             {% endblock %}
         </main>
     </div>

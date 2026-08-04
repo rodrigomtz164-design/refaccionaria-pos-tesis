@@ -100,10 +100,31 @@ class Producto(models.Model):
     
     es_granel = models.BooleanField(default=False, help_text="Marcar si se vende suelto/granel sin código")
     unidad_medida = models.CharField(max_length=20, default='Pieza', help_text="Ej. Pieza, Litro, Metro")
+    
+    # Campo para activar/desactivar piezas (Baja lógica sin perder historial)
+    activo = models.BooleanField(default=True, help_text="Permite pausar o reactivar el producto en el POS sin borrar su historial")
+    
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.sku or 'SIN-SKU'} - {self.nombre}"
+        estado_str = "" if self.activo else " [INACTIVO]"
+        return f"{self.sku or 'SIN-SKU'} - {self.nombre}{estado_str}"
+
+
+class ListaPrecioProveedor(models.Model):
+    """
+    Lista de precios de proveedores/negocios cercanos para consultar cuando no hay stock en tienda
+    """
+    proveedor_negocio = models.CharField(max_length=150, help_text="Ej. Honda Central, AutoZone Sur, Refaccionaria El Pistón")
+    codigo_refaccion = models.CharField(max_length=100, blank=True, null=True)
+    nombre_refaccion = models.CharField(max_length=200)
+    precio_referencia = models.DecimalField(max_digits=10, decimal_places=2)
+    telefono_contacto = models.CharField(max_length=30, blank=True, null=True)
+    notas = models.TextField(blank=True, null=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.nombre_refaccion} (${self.precio_referencia}) - {self.proveedor_negocio}"
 
 
 # ==========================================

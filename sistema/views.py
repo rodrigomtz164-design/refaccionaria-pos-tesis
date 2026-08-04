@@ -10,7 +10,8 @@ from django.utils import timezone
 
 from .models import (
     Producto, Categoria, MarcaAuto, ModeloAuto, 
-    Venta, DetalleVenta, Cotizacion, DetalleCotizacion, LogAuditoria, Usuario, Rol
+    Venta, DetalleVenta, Cotizacion, DetalleCotizacion, LogAuditoria, Usuario, Rol,
+    ListaPrecioProveedor
 )
 from .decorators import admin_required, almacen_required, vendedor_required
 
@@ -45,7 +46,7 @@ def dashboard_admin(request):
     total_ventas_hoy = ventas_hoy_qs.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
     num_ventas_hoy = ventas_hoy_qs.count()
     
-    productos_bajo_stock = Producto.objects.filter(stock_actual__lte=F('stock_minimo'))
+    productos_bajo_stock = Producto.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True)
     cant_bajo_stock = productos_bajo_stock.count()
     cotizaciones_mes = Cotizacion.objects.count()
 
@@ -69,7 +70,7 @@ def dashboard_admin(request):
 @almacen_required
 def dashboard_almacen(request):
     total_productos = Producto.objects.count()
-    productos_bajo = Producto.objects.filter(stock_actual__lte=F('stock_minimo')).select_related('categoria')
+    productos_bajo = Producto.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True).select_related('categoria')
     total_stock_bajo = productos_bajo.count()
 
     categorias = Categoria.objects.all()
@@ -139,7 +140,8 @@ def lista_productos(request):
                 stock_actual=stock_actual,
                 stock_minimo=stock_minimo,
                 es_granel=es_granel,
-                unidad_medida=unidad_medida
+                unidad_medida=unidad_medida,
+                activo=True
             )
 
             LogAuditoria.objects.create(
@@ -187,9 +189,36 @@ def lista_productos(request):
     return render(request, 'sistema/lista_productos.html', context)
 
 
+@almacen_required
+def toggle_estado_producto(request, producto_id):
+    """ Permite pausar/desactivar o reactivar un producto (Soft Delete) """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            producto = get_object_or_404(Producto, id=producto_id)
+            nuevo_estado = bool(data.get('activo', True))
+            
+            producto.activo = nuevo_estado
+            producto.save(update_fields=['activo'])
+
+            estado_str = "ACTIVADO" if nuevo_estado else "DESACTIVADO"
+            LogAuditoria.objects.create(
+                usuario=request.user,
+                accion=f"Cambio de Estado Producto #{producto.id}",
+                detalles=f"El producto '{producto.nombre}' (SKU: {producto.sku or 'SIN SKU'}) fue {estado_str}."
+            )
+
+            return JsonResponse({'success': True, 'activo': producto.activo, 'message': f'Producto {estado_str.lower()} correctamente.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)})
+
+    return JsonResponse({'success': False, 'message': 'Método no permitido.'})
+
+
 @vendedor_required
 def pos_ventas(request):
-    productos = Producto.objects.filter(stock_actual__gt=0).select_related('categoria').prefetch_related('aplicaciones__marca')
+    # En el POS solo mostramos los productos ACTIVOS y con existencia
+    productos = Producto.objects.filter(activo=True, stock_actual__gt=0).select_related('categoria').prefetch_related('aplicaciones__marca')
     categorias = Categoria.objects.all()
     marcas = MarcaAuto.objects.all()
 
@@ -223,6 +252,9 @@ def procesar_venta(request):
                 for item in carrito:
                     producto = Producto.objects.select_for_update().get(id=item['id'])
                     cant = Decimal(str(item['cantidad']))
+
+                    if not producto.activo:
+                        raise Exception(f'El producto {producto.nombre} se encuentra inactivo/pausado.')
 
                     if producto.stock_actual < cant:
                         raise Exception(f'Stock insuficiente para: {producto.nombre}. Disponible: {producto.stock_actual}')

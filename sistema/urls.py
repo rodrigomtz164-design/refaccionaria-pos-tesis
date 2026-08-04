@@ -16,12 +16,13 @@ urlpatterns = [
     # Inventario / Tabla General
     path('productos/', views.lista_productos, name='lista_productos'),
     path('productos/editar/<int:producto_id>/', views.editar_producto, name='editar_producto'),
+    path('productos/toggle-estado/<int:producto_id>/', views.toggle_estado_producto, name='toggle_estado_producto'),
 
     # Punto de Venta / Caja Mostrador
     path('pos/', views.pos_ventas, name='pos_ventas'),
     path('pos/procesar-venta/', views.procesar_venta, name='procesar_venta'),
 
-    # Historial de Ventas y Corte de Caja (NUEVAS RUTAS)
+    # Historial de Ventas y Corte de Caja
     path('ventas/', views.lista_ventas, name='lista_ventas'),
     path('corte-caja/', views.corte_caja_view, name='corte_caja'),
 

@@ -3,22 +3,22 @@
 {% block title %}Catálogo de Productos - Refaccionaria Los Paddys{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-2">
+<div class="container-fluid p-0">
     <!-- Header -->
-    <div class="d-flex align-items-center justify-content-between mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
         <div>
             <h2 class="h3 fw-bold mb-0 text-dark">
                 <i class="fa-solid fa-boxes-stacked text-primary me-2"></i>Catálogo de Refacciones
             </h2>
-            <p class="text-muted mb-0">Listado general de inventario, existencias y compatibilidad.</p>
+            <p class="text-muted mb-0">Listado general de inventario, existencias, estado y compatibilidad.</p>
         </div>
     </div>
 
     <!-- Barra de Filtros Rápidos -->
-    <div class="card border-0 shadow-sm mb-4">
+    <div class="card border-0 shadow-sm mb-3">
         <div class="card-body bg-white rounded p-3">
             <form method="get" class="row g-3" id="filterForm">
-                <div class="col-12 col-md-4 position-relative" id="busquedaContainer">
+                <div class="col-12 col-lg-4 position-relative" id="busquedaContainer">
                     <label for="q" class="form-label fw-bold small text-muted text-uppercase">Búsqueda Rápida</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
@@ -26,7 +26,7 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label for="categoria" class="form-label fw-bold small text-muted text-uppercase">Categoría</label>
                     <select name="categoria" id="categoria" class="form-select">
                         <option value="">Todas las categorías</option>
@@ -38,7 +38,7 @@
                     </select>
                 </div>
 
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label for="marca" class="form-label fw-bold small text-muted text-uppercase">Marca de Auto</label>
                     <select name="marca" id="marca" class="form-select">
                         <option value="">Todas las marcas</option>
@@ -50,7 +50,7 @@
                     </select>
                 </div>
 
-                <div class="col-12 col-md-2 d-flex align-items-end">
+                <div class="col-12 col-lg-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">
                         <i class="fa-solid fa-filter me-1"></i> Filtrar
                     </button>
@@ -62,32 +62,37 @@
     <!-- Tabla General de Productos -->
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
-                        <tr class="small text-muted">
-                            <th class="ps-3">SKU</th>
-                            <th>Producto</th>
-                            <th>Categoría</th>
-                            <th>Compatibilidad</th>
-                            <th>Precio Venta</th>
-                            <th>Stock</th>
-                            <th>Tipo</th>
-                            <th class="text-center pe-3">Acciones</th>
+            <!-- ALTO FÍSICO CON SCROLL INTERNO: MANTIENE LA BARRA SIEMPRE A LA VISTA -->
+            <div style="max-height: 68vh; overflow-y: auto; overflow-x: auto; width: 100%;">
+                <table class="table table-hover align-middle mb-0" style="min-width: 1100px; width: 100%;">
+                    <thead class="table-light position-sticky top-0 shadow-sm" style="z-index: 10;">
+                        <tr class="small text-muted text-uppercase">
+                            <th class="ps-3" style="width: 120px;">SKU</th>
+                            <th style="width: 240px;">Producto</th>
+                            <th style="width: 120px;">Categoría</th>
+                            <th style="width: 220px;">Compatibilidad</th>
+                            <th style="width: 110px;">Precio Venta</th>
+                            <th style="width: 120px;">Stock</th>
+                            <th class="text-center" style="width: 100px;">Estado</th>
+                            <th style="width: 90px;">Tipo</th>
+                            
+                            {% if user.is_superuser or user.rol.nombre == 'Administrador' or user.rol.nombre == 'Almacenista' %}
+                            <th class="text-center pe-3" style="width: 130px;">Acciones</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for producto in productos %}
-                        <tr id="fila-producto-{{ producto.id }}">
+                        <tr id="fila-producto-{{ producto.id }}" class="{% if not producto.activo %}table-secondary text-muted opacity-75{% endif %}">
                             <td class="ps-3 fw-bold text-dark">{{ producto.sku|default:"SIN SKU" }}</td>
-                            <td>
+                            <td style="white-space: normal;">
                                 <div class="fw-bold text-dark product-name">{{ producto.nombre }}</div>
                                 <small class="text-muted">{{ producto.descripcion|truncatechars:40|default:"" }}</small>
                             </td>
                             <td><span class="badge bg-info-subtle text-info border border-info-subtle">{{ producto.categoria.nombre }}</span></td>
-                            <td>
+                            <td style="white-space: normal;">
                                 {% for app in producto.aplicaciones.all %}
-                                    <span class="badge bg-secondary-subtle text-secondary border mb-1">
+                                    <span class="badge bg-secondary-subtle text-secondary border mb-1 d-inline-block">
                                         {{ app.marca.nombre }} {{ app.nombre }} ({{ app.anio_inicio }}-{{ app.anio_fin }})
                                     </span>
                                 {% empty %}
@@ -102,6 +107,14 @@
                                     <span class="badge bg-success" id="stock-badge-{{ producto.id }}">{{ producto.stock_actual }} {{ producto.unidad_medida }}</span>
                                 {% endif %}
                             </td>
+                            <!-- Estado Badge -->
+                            <td class="text-center" id="estado-col-{{ producto.id }}">
+                                {% if producto.activo %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" id="badge-estado-{{ producto.id }}">Activo</span>
+                                {% else %}
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" id="badge-estado-{{ producto.id }}">Inactivo</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if producto.es_granel %}
                                     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-fill-drip me-1"></i>Granel</span>
@@ -109,22 +122,39 @@
                                     <span class="badge bg-light text-dark border">Pieza</span>
                                 {% endif %}
                             </td>
+
+                            <!-- Columna Acciones (Solo Admin y Almacenista) -->
+                            {% if user.is_superuser or user.rol.nombre == 'Administrador' or user.rol.nombre == 'Almacenista' %}
                             <td class="text-center pe-3">
-                                <button class="btn btn-sm btn-outline-warning fw-bold text-dark btn-editar-modal"
-                                        data-id="{{ producto.id }}"
-                                        data-sku="{{ producto.sku|default:'SIN SKU' }}"
-                                        data-nombre="{{ producto.nombre }}"
-                                        data-precio="{{ producto.precio_venta }}"
-                                        data-stock="{{ producto.stock_actual }}"
-                                        data-granel="{% if producto.es_granel %}1{% else %}0{% endif %}"
-                                        data-unidad="{{ producto.unidad_medida }}">
-                                    <i class="fa-solid fa-pen-to-square me-1"></i> Editar
-                                </button>
+                                <div class="d-flex align-items-center justify-content-center gap-2">
+                                    <!-- Switch Activar/Desactivar -->
+                                    <div class="form-check form-switch m-0 p-0" style="min-height: auto;" title="Activar/Desactivar Refacción">
+                                        <input class="form-check-input switch-toggle-estado m-0" type="checkbox" role="switch" 
+                                               data-id="{{ producto.id }}" 
+                                               id="switch-{{ producto.id }}"
+                                               style="cursor: pointer; width: 2.2em; height: 1.1em;"
+                                               {% if producto.activo %}checked{% endif %}>
+                                    </div>
+
+                                    <!-- Botón Editar -->
+                                    <button class="btn btn-sm btn-outline-warning fw-bold text-dark btn-editar-modal px-2 py-1"
+                                            title="Editar refacción"
+                                            data-id="{{ producto.id }}"
+                                            data-sku="{{ producto.sku|default:'SIN SKU' }}"
+                                            data-nombre="{{ producto.nombre }}"
+                                            data-precio="{{ producto.precio_venta }}"
+                                            data-stock="{{ producto.stock_actual }}"
+                                            data-granel="{% if producto.es_granel %}1{% else %}0{% endif %}"
+                                            data-unidad="{{ producto.unidad_medida }}">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                </div>
                             </td>
+                            {% endif %}
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
+                            <td colspan="9" class="text-center py-4 text-muted">
                                 <i class="fa-solid fa-box-open fa-2x mb-2 d-block"></i>
                                 No se encontraron productos con los filtros seleccionados.
                             </td>
@@ -181,7 +211,7 @@
     </div>
 </div>
 
-<!-- JavaScript para Autocompletado e Interacción con el Modal -->
+<!-- JavaScript para Autocompletado, Modal y Switch Activo/Inactivo -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // --- LÓGICA DEL BUSCADOR AUTOCOMPLETE ---
@@ -255,6 +285,47 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // --- LÓGICA TOGGLE ACTIVAR/DESACTIVAR PRODUCTO (SOFT DELETE) ---
+    document.querySelectorAll('.switch-toggle-estado').forEach(switchInput => {
+        switchInput.addEventListener('change', function() {
+            const prodId = this.dataset.id;
+            const nuevoEstado = this.checked;
+            const fila = document.getElementById(`fila-producto-${prodId}`);
+            const badgeEstado = document.getElementById(`badge-estado-${prodId}`);
+
+            fetch(`/productos/toggle-estado/${prodId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ activo: nuevoEstado })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (nuevoEstado) {
+                        fila.classList.remove('table-secondary', 'text-muted', 'opacity-75');
+                        badgeEstado.className = 'badge bg-success-subtle text-success border border-success-subtle px-2 py-1';
+                        badgeEstado.textContent = 'Activo';
+                    } else {
+                        fila.classList.add('table-secondary', 'text-muted', 'opacity-75');
+                        badgeEstado.className = 'badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1';
+                        badgeEstado.textContent = 'Inactivo';
+                    }
+                } else {
+                    alert('Error al cambiar estado: ' + data.message);
+                    this.checked = !nuevoEstado;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Ocurrió un error al intentar cambiar el estado del producto.');
+                this.checked = !nuevoEstado;
+            });
+        });
+    });
+
     // --- LÓGICA DEL MODAL DE EDICIÓN EN TIEMPO REAL ---
     const modalElement = document.getElementById('modalEditarProducto');
     const modalEditar = new bootstrap.Modal(modalElement);
@@ -276,7 +347,6 @@ document.addEventListener('DOMContentLoaded', function() {
             inputEditStock.value = parseFloat(this.dataset.stock);
             txtEditUnidad.textContent = this.dataset.unidad;
 
-            // Ajustar el incremento según si es a granel o no
             if (this.dataset.granel === '1') {
                 inputEditStock.step = '0.01';
             } else {
@@ -322,7 +392,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 modalEditar.hide();
                 alert('¡Refacción actualizada en MySQL correctamente!');
 
-                // Actualización inmediata en la interfaz sin recargar
                 const precioTxt = document.getElementById(`precio-txt-${prodId}`);
                 const stockBadge = document.getElementById(`stock-badge-${prodId}`);
 
@@ -332,7 +401,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     stockBadge.textContent = `${nuevoStock} ${unidad}`;
                 }
 
-                // Actualizar los data-attributes del botón
                 const btnOriginal = document.querySelector(`.btn-editar-modal[data-id="${prodId}"]`);
                 if (btnOriginal) {
                     btnOriginal.dataset.precio = nuevoPrecio;
