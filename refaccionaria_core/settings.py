@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
+import dj_database_url
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,7 +27,7 @@ SECRET_KEY = 'django-insecure-v+s@pa66923#sv0^e4+$k5_a$$^h2_&70!b(-1*u)5s4@u@ma*
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -43,6 +45,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -72,17 +75,21 @@ WSGI_APPLICATION = 'refaccionaria_core.wsgi.application'
 
 
 # Database
-# Configuración con MySQL y usuario dedicado refacc_user
+# En local usa MySQL; si detecta DATABASE_URL en Render, usa PostgreSQL automáticamente
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'refaccionaria_db',
         'USER': 'refacc_user',
-        'PASSWORD': 'PasswordRefacc123!',  # Si le pusiste otra contraseña en Workbench, cámbiala aquí
+        'PASSWORD': 'PasswordRefacc123!',
         'HOST': 'localhost',
         'PORT': '3306',
     }
 }
+
+DATABASES_RENDER = dj_database_url.config(conn_max_age=600)
+if DATABASES_RENDER:
+    DATABASES['default'] = DATABASES_RENDER
 
 
 # Password validation
@@ -118,7 +125,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 AUTH_USER_MODEL = 'sistema.Usuario'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
