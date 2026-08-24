@@ -35,6 +35,7 @@ class Usuario(AbstractUser):
     def __str__(self):
         return f"{self.username} - {self.rol.nombre if self.rol else 'Sin Rol'}"
 
+
 # ==========================================
 # 2. CLASIFICACIÓN DE AUTOS Y REFACCIONES
 # ==========================================
@@ -80,7 +81,6 @@ class Proveedor(models.Model):
 # 3. INVENTARIO / PRODUCTOS (REFACCIONES)
 # ==========================================
 class Producto(models.Model):
-    # SKU / Código de barras (Alfanumérico personalizado, permite nulos para venta a granel)
     sku = models.CharField(max_length=50, unique=True, null=True, blank=True)
     nombre = models.CharField(max_length=200)
     descripcion = models.TextField(blank=True, null=True)
@@ -88,22 +88,18 @@ class Producto(models.Model):
     categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT, related_name='productos')
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
     
-    # Compatibilidad con múltiples vehículos
     aplicaciones = models.ManyToManyField(ModeloAuto, blank=True, related_name='productos_compatibles')
 
     precio_costo = models.DecimalField(max_digits=10, decimal_places=2)
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2)
     
-    # Soporte para decimales en ventas a granel (litros, metros, etc.)
     stock_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=5.00, help_text="Alerta de stock bajo")
     
     es_granel = models.BooleanField(default=False, help_text="Marcar si se vende suelto/granel sin código")
     unidad_medida = models.CharField(max_length=20, default='Pieza', help_text="Ej. Pieza, Litro, Metro")
     
-    # Campo para activar/desactivar piezas (Baja lógica sin perder historial)
     activo = models.BooleanField(default=True, help_text="Permite pausar o reactivar el producto en el POS sin borrar su historial")
-    
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -112,9 +108,6 @@ class Producto(models.Model):
 
 
 class ListaPrecioProveedor(models.Model):
-    """
-    Lista de precios de proveedores/negocios cercanos para consultar cuando no hay stock en tienda
-    """
     proveedor_negocio = models.CharField(max_length=150, help_text="Ej. Honda Central, AutoZone Sur, Refaccionaria El Pistón")
     codigo_refaccion = models.CharField(max_length=100, blank=True, null=True)
     nombre_refaccion = models.CharField(max_length=200)
@@ -128,19 +121,39 @@ class ListaPrecioProveedor(models.Model):
 
 
 # ==========================================
-# 4. VENTAS, COTIZACIONES Y AUDITORÍA
+# 4. DESCUENTOS CONFIGURABLES POR ADMIN
 # ==========================================
-class Venta(models.Model):
-    NIVELES_DESCUENTO = [
-        (0.00, 'Sin Descuento (0%)'),
-        (0.02, 'Nivel 1 (2%)'),
-        (0.05, 'Nivel 2 (5%)'),
-        (0.08, 'Nivel 3 (8%)'),
-    ]
+class DescuentoConfig(models.Model):
+    nombre = models.CharField(max_length=50, help_text="Ej. Descuento Mostrador, Amigo Mecánico")
+    porcentaje = models.IntegerField(help_text="Porcentaje entero: 2, 5, 8, 10, 15...")
+    activo = models.BooleanField(default=True)
 
+    class Meta:
+        ordering = ['porcentaje']
+
+    def __str__(self):
+        return f"{self.nombre} ({self.porcentaje}%)"
+
+
+# ==========================================
+# 5. CORTES DE CAJA, VENTAS Y AUDITORÍA
+# ==========================================
+class CorteCaja(models.Model):
+    usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='cortes_realizados')
+    fecha_cierre = models.DateTimeField(auto_now_add=True)
+    total_cobrado = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    num_ventas = models.IntegerField(default=0)
+    observaciones = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Corte #{self.id} - {self.fecha_cierre.strftime('%d/%m/%Y %H:%M')} por {self.usuario.username} (${self.total_cobrado})"
+
+
+class Venta(models.Model):
     vendedor = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='ventas')
+    corte = models.ForeignKey(CorteCaja, on_delete=models.SET_NULL, null=True, blank=True, related_name='ventas_incluidas')
     fecha_venta = models.DateTimeField(auto_now_add=True)
-    descuento_aplicado = models.DecimalField(max_digits=4, decimal_places=2, choices=NIVELES_DESCUENTO, default=0.00)
+    descuento_aplicado = models.DecimalField(max_digits=4, decimal_places=2, default=0.00)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
@@ -169,6 +182,7 @@ class Cotizacion(models.Model):
     vendedor = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='cotizaciones')
     cliente_nombre = models.CharField(max_length=150, blank=True, null=True, default='Cliente Mostrador')
     cliente_telefono = models.CharField(max_length=20, blank=True, null=True)
+    cliente_email = models.EmailField(blank=True, null=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
@@ -176,7 +190,6 @@ class Cotizacion(models.Model):
 
     @property
     def es_valida(self):
-        """Regla de negocio: Vigente estrictamente dentro de las 24 horas de creación"""
         return timezone.now() <= (self.fecha_creacion + timedelta(hours=24))
 
     def __str__(self):

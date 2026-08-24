@@ -26,9 +26,11 @@ urlpatterns = [
     path('pos/', views.pos_ventas, name='pos_ventas'),
     path('pos/procesar-venta/', views.procesar_venta, name='procesar_venta'),
 
-    # Historial de Ventas y Corte de Caja
+    # Historial de Ventas y Corte de Caja Formal
     path('ventas/', views.lista_ventas, name='lista_ventas'),
     path('corte-caja/', views.corte_caja_view, name='corte_caja'),
+    path('corte-caja/efectuar/', views.efectuar_cierre_caja, name='efectuar_cierre_caja'),
+    path('corte-caja/imprimir/<int:corte_id>/', views.imprimir_corte_ticket, name='imprimir_corte_ticket'),
 
     # Ticket de Venta
     path('ventas/ticket/<int:venta_id>/', views.imprimir_ticket_venta, name='imprimir_ticket_venta'),
@@ -39,9 +41,10 @@ urlpatterns = [
     path('cotizaciones/imprimir/<int:cotizacion_id>/', views.generar_cotizacion_pdf, name='generar_cotizacion_pdf'),
     path('cotizaciones/cargar-pos/<int:cotizacion_id>/', views.cargar_cotizacion_pos, name='cargar_cotizacion_pos'),
 
-    # Administración Interna
+    # Administración Interna y Descuentos Dinámicos
     path('usuarios/', views.lista_usuarios, name='lista_usuarios'),
     path('usuarios/crear/', views.crear_usuario, name='crear_usuario'),
     path('usuarios/editar/<int:usuario_id>/', views.editar_usuario, name='editar_usuario'),
     path('auditoria/', views.lista_auditoria, name='lista_auditoria'),
+    path('administracion/descuentos/', views.gestion_descuentos, name='gestion_descuentos'),
 ]

@@ -2,6 +2,26 @@
 
 {% block title %}Dashboard Administrador - POS Refaccionaria{% endblock %}
 
+{% block extra_css %}
+<style>
+    .card-hover {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card-hover:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+    }
+    .badge-online {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        background-color: #22c55e;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-2">
     <!-- Header -->
@@ -12,7 +32,13 @@
             </h2>
             <p class="text-muted mb-0">Resumen operativo, métricas del negocio y estado del inventario.</p>
         </div>
-        <div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'gestion_descuentos' %}" class="btn btn-outline-warning fw-bold shadow-sm text-dark">
+                <i class="fa-solid fa-percent me-1"></i> Descuentos POS
+            </a>
+            <a href="{% url 'pos_ventas' %}" class="btn btn-outline-primary fw-bold shadow-sm">
+                <i class="fa-solid fa-file-invoice-dollar me-1"></i> Cotizador
+            </a>
             <a href="{% url 'pos_ventas' %}" class="btn btn-success fw-bold shadow-sm">
                 <i class="fa-solid fa-cash-register me-1"></i> Abrir Caja / POS
             </a>
@@ -21,6 +47,7 @@
 
     <!-- TARJETAS DE MÉTRICAS (KPIs) -->
     <div class="row g-3 mb-4">
+        <!-- Tarjeta: Ventas Hoy y Operaciones -->
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
                 <div class="card-body">
@@ -34,63 +61,77 @@
                         </div>
                     </div>
                     <small class="text-muted mt-2 d-block">
-                        <i class="fa-solid fa-receipt me-1"></i> {{ num_ventas_hoy }} transacción(es)
+                        <i class="fa-solid fa-bolt text-warning me-1"></i> <strong>{{ total_operaciones_hoy }}</strong> operaciones ({{ num_ventas_hoy }} ventas, {{ num_cotiz_hoy }} cotiz.)
                     </small>
                 </div>
             </div>
         </div>
 
+        <!-- Tarjeta: Stock Crítico con Enlace Directo -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <span class="text-muted fw-semibold small text-uppercase">Stock Crítico</span>
-                            <h3 class="fw-bold text-dark mt-1 mb-0">{{ cant_bajo_stock }}</h3>
+            <a href="{% url 'lista_productos' %}?filtro=stock_bajo" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning card-hover">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted fw-semibold small text-uppercase">Stock Crítico</span>
+                                <h3 class="fw-bold text-danger mt-1 mb-0">{{ cant_bajo_stock }}</h3>
+                            </div>
+                            <div class="bg-warning-subtle p-3 rounded-circle text-warning">
+                                <i class="fa-solid fa-triangle-exclamation fs-4"></i>
+                            </div>
                         </div>
-                        <div class="bg-warning-subtle p-3 rounded-circle text-warning">
-                            <i class="fa-solid fa-triangle-exclamation fs-4"></i>
-                        </div>
+                        <small class="text-primary fw-semibold mt-2 d-block">
+                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Ver productos a reabastecer
+                        </small>
                     </div>
-                    <small class="text-muted mt-2 d-block">
-                        Productos con menos de 3 unidades
-                    </small>
                 </div>
-            </div>
+            </a>
         </div>
 
+        <!-- Tarjeta: Cotizaciones Registradas -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm h-100 border-start border-4 border-info">
-                <div class="card-body">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <span class="text-muted fw-semibold small text-uppercase">Cotizaciones</span>
-                            <h3 class="fw-bold text-dark mt-1 mb-0">{{ cotizaciones_mes }}</h3>
+            <a href="{% url 'lista_cotizaciones' %}" class="text-decoration-none">
+                <div class="card border-0 shadow-sm h-100 border-start border-4 border-info card-hover">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted fw-semibold small text-uppercase">Cotizaciones</span>
+                                <h3 class="fw-bold text-dark mt-1 mb-0">{{ cotizaciones_mes }}</h3>
+                            </div>
+                            <div class="bg-info-subtle p-3 rounded-circle text-info">
+                                <i class="fa-solid fa-file-invoice-dollar fs-4"></i>
+                            </div>
                         </div>
-                        <div class="bg-info-subtle p-3 rounded-circle text-info">
-                            <i class="fa-solid fa-file-invoice-dollar fs-4"></i>
-                        </div>
+                        <small class="text-muted mt-2 d-block">
+                            <i class="fa-solid fa-clock-rotate-left me-1"></i> {{ num_cotiz_hoy }} emitidas el día de hoy
+                        </small>
                     </div>
-                    <small class="text-muted mt-2 d-block">
-                        Registradas en el sistema
-                    </small>
                 </div>
-            </div>
+            </a>
         </div>
 
+        <!-- Tarjeta: Personal / Usuarios y Accesos -->
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <span class="text-muted fw-semibold small text-uppercase">Accesos Directos</span>
-                            <div class="mt-2">
-                                <a href="{% url 'lista_usuarios' %}" class="btn btn-sm btn-outline-primary me-1">Usuarios</a>
-                                <a href="{% url 'lista_auditoria' %}" class="btn btn-sm btn-outline-danger">Auditoría</a>
-                            </div>
+                            <span class="text-muted fw-semibold small text-uppercase">Personal / Usuarios</span>
+                            <h3 class="fw-bold text-dark mt-1 mb-0">{{ total_usuarios }} <span class="fs-6 fw-normal text-muted">registrados</span></h3>
                         </div>
                         <div class="bg-primary-subtle p-3 rounded-circle text-primary">
-                            <i class="fa-solid fa-sliders fs-4"></i>
+                            <i class="fa-solid fa-users fs-4"></i>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-1">
+                        <small class="text-success fw-bold d-flex align-items-center">
+                            <span class="badge-online me-2"></span> {{ usuarios_en_linea }} en línea
+                        </small>
+                        <div>
+                            <a href="{% url 'gestion_descuentos' %}" class="badge bg-warning text-dark text-decoration-none me-1" title="Configurar descuentos">Descuentos</a>
+                            <a href="{% url 'lista_usuarios' %}" class="badge bg-primary text-decoration-none me-1">Gestionar</a>
+                            <a href="{% url 'lista_auditoria' %}" class="badge bg-danger text-decoration-none">Logs</a>
                         </div>
                     </div>
                 </div>
@@ -98,61 +139,16 @@
         </div>
     </div>
 
-    <!-- SECCIÓN DE GRÁFICAS Y TABLAS -->
+    <!-- SECCIÓN DE GRÁFICA DE VENTAS -->
     <div class="row g-4">
-        <!-- Gráfica de Ventas -->
-        <div class="col-12 col-lg-7">
-            <div class="card border-0 shadow-sm h-100">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-3 border-0 fw-bold text-dark d-flex align-items-center justify-content-between">
                     <span><i class="fa-solid fa-chart-line text-primary me-2"></i>Comportamiento de Ventas</span>
                     <span class="badge bg-light text-dark border">En Tiempo Real</span>
                 </div>
-                <div class="card-body">
-                    <canvas id="chartVentas" height="130"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- Alertas de Inventario Bajo -->
-        <div class="col-12 col-lg-5">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white py-3 border-0 fw-bold text-dark d-flex align-items-center justify-content-between">
-                    <span><i class="fa-solid fa-boxes-stacked text-warning me-2"></i>Alertas de Inventario</span>
-                    <a href="{% url 'lista_productos' %}" class="text-decoration-none small">Ver Todo</a>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr class="small text-muted">
-                                    <th class="ps-3">SKU / Producto</th>
-                                    <th>Precio</th>
-                                    <th class="text-end pe-3">Stock</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for prod in productos_bajo_stock %}
-                                <tr>
-                                    <td class="ps-3">
-                                        <div class="fw-bold text-dark">{{ prod.codigo_barras }}</div>
-                                        <div class="small text-muted">{{ prod.nombre }}</div>
-                                    </td>
-                                    <td class="fw-semibold">${{ prod.precio|floatformat:2 }}</td>
-                                    <td class="text-end pe-3">
-                                        <span class="badge bg-danger">{{ prod.stock }} pzs</span>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                                    <td colspan="3" class="text-center py-4 text-muted">
-                                        <i class="fa-solid fa-circle-check text-success fs-4 d-block mb-2"></i>
-                                        Todo el inventario cuenta con stock suficiente.
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="card-body p-4">
+                    <canvas id="chartVentas" height="90"></canvas>
                 </div>
             </div>
         </div>
@@ -178,21 +174,37 @@
                     label: 'Monto de Venta ($)',
                     data: data.length ? data : [0],
                     borderColor: '#2563eb',
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    backgroundColor: 'rgba(37, 99, 235, 0.08)',
                     fill: true,
                     tension: 0.3,
                     borderWidth: 3,
-                    pointRadius: 4,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
                     pointBackgroundColor: '#2563eb'
                 }]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: true,
                 plugins: {
-                    legend: { display: false }
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ' Venta: $' + Number(context.raw).toFixed(2);
+                            }
+                        }
+                    }
                 },
                 scales: {
-                    y: { beginAtZero: true }
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value;
+                            }
+                        }
+                    }
                 }
             }
         });

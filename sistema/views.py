@@ -9,11 +9,12 @@ from django.db.models import Q, Sum, F
 from django.http import JsonResponse, HttpResponse
 from django.db import transaction
 from django.utils import timezone
+from django.contrib.sessions.models import Session
 
 from .models import (
     Producto, Categoria, MarcaAuto, ModeloAuto, 
     Venta, DetalleVenta, Cotizacion, DetalleCotizacion, LogAuditoria, Usuario, Rol,
-    ListaPrecioProveedor
+    ListaPrecioProveedor, CorteCaja, DescuentoConfig
 )
 from .decorators import admin_required, almacen_required, vendedor_required
 
@@ -24,6 +25,15 @@ def get_rango_dia_local():
     inicio_dia = timezone.make_aware(datetime.combine(ahora_local.date(), time.min))
     fin_dia = timezone.make_aware(datetime.combine(ahora_local.date(), time.max))
     return inicio_dia, fin_dia, ahora_local.date()
+
+
+def inicializar_descuentos_base():
+    """Asegura que existan los descuentos predefinidos (2%, 5%, 10%, 15%) si la tabla está vacía."""
+    if not DescuentoConfig.objects.exists():
+        DescuentoConfig.objects.create(nombre="Descuento Mostrador", porcentaje=2, activo=True)
+        DescuentoConfig.objects.create(nombre="Descuento Medio", porcentaje=5, activo=True)
+        DescuentoConfig.objects.create(nombre="Descuento Taller", porcentaje=10, activo=True)
+        DescuentoConfig.objects.create(nombre="Descuento Especial", porcentaje=15, activo=False)
 
 
 @login_required
@@ -41,28 +51,54 @@ def dashboard(request):
 
 @admin_required
 def dashboard_admin(request):
+    inicializar_descuentos_base()
     inicio_dia, fin_dia, hoy = get_rango_dia_local()
     
-    # Rango exacto de ventas de HOY
+    # 1. Ventas del día
     ventas_hoy_qs = Venta.objects.filter(fecha_venta__range=(inicio_dia, fin_dia))
     total_ventas_hoy = ventas_hoy_qs.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
     num_ventas_hoy = ventas_hoy_qs.count()
     
-    productos_bajo_stock = Producto.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True)
-    cant_bajo_stock = productos_bajo_stock.count()
+    # 2. Cotizaciones de hoy y totales
+    cotizaciones_hoy_qs = Cotizacion.objects.filter(fecha_creacion__range=(inicio_dia, fin_dia))
+    num_cotiz_hoy = cotizaciones_hoy_qs.count()
     cotizaciones_mes = Cotizacion.objects.count()
 
-    # Gráfica de Ventas
-    ventas_recientes = Venta.objects.order_by('-fecha_venta')[:10]
+    # 3. Operaciones totales del día
+    total_operaciones_hoy = num_ventas_hoy + num_cotiz_hoy
+
+    # 4. Usuarios registrados y En Línea (Sesiones Activas)
+    total_usuarios = Usuario.objects.count()
+    
+    sesiones_activas = Session.objects.filter(expire_date__gte=timezone.now())
+    usuarios_online_ids = set()
+    for s in sesiones_activas:
+        data = s.get_decoded()
+        uid = data.get('_auth_user_id')
+        if uid:
+            usuarios_online_ids.add(uid)
+            
+    usuarios_en_linea = Usuario.objects.filter(id__in=usuarios_online_ids).count()
+    if usuarios_en_linea == 0 and request.user.is_authenticated:
+        usuarios_en_linea = 1
+    
+    # 5. Cantidad de Stock Crítico
+    cant_bajo_stock = Producto.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True).count()
+
+    # 6. Gráfica de Ventas
+    ventas_recientes = Venta.objects.order_by('-fecha_venta')[:12]
     labels_ventas = [timezone.localtime(v.fecha_venta).strftime("%H:%M") for v in reversed(ventas_recientes)]
     data_ventas = [float(v.total) for v in reversed(ventas_recientes)]
 
     context = {
         'total_ventas_hoy': total_ventas_hoy,
         'num_ventas_hoy': num_ventas_hoy,
+        'num_cotiz_hoy': num_cotiz_hoy,
+        'total_operaciones_hoy': total_operaciones_hoy,
+        'total_usuarios': total_usuarios,
+        'usuarios_en_linea': usuarios_en_linea,
         'cant_bajo_stock': cant_bajo_stock,
         'cotizaciones_mes': cotizaciones_mes,
-        'productos_bajo_stock': productos_bajo_stock,
         'labels_ventas': json.dumps(labels_ventas),
         'data_ventas': json.dumps(data_ventas),
     }
@@ -106,7 +142,6 @@ def dashboard_ventas(request):
     
     cotizaciones_vendedor = Cotizacion.objects.filter(vendedor=request.user).count()
 
-    # Formateo adecuado para Chart.js
     labels_ventas_turno = [timezone.localtime(v.fecha_venta).strftime("%H:%M") for v in ventas_hoy]
     data_ventas_turno = [float(v.total) for v in ventas_hoy]
 
@@ -118,6 +153,30 @@ def dashboard_ventas(request):
         'data_ventas_turno': json.dumps(data_ventas_turno),
     }
     return render(request, 'sistema/dashboard_ventas.html', context)
+
+
+@admin_required
+def gestion_descuentos(request):
+    """Permite al Admin activar/desactivar qué porcentajes de descuento se ofrecen en la caja."""
+    inicializar_descuentos_base()
+
+    if request.method == 'POST':
+        descuentos = DescuentoConfig.objects.all()
+        for desc in descuentos:
+            checkbox_val = request.POST.get(f'desc_{desc.id}')
+            desc.activo = bool(checkbox_val)
+            desc.save(update_fields=['activo'])
+
+        LogAuditoria.objects.create(
+            usuario=request.user,
+            accion="Actualización de Descuentos POS",
+            detalles="Se modificaron los porcentajes de descuento habilitados para los vendedores."
+        )
+        messages.success(request, '¡Configuración de descuentos actualizada con éxito!')
+        return redirect('gestion_descuentos')
+
+    descuentos = DescuentoConfig.objects.all()
+    return render(request, 'sistema/gestion_descuentos.html', {'descuentos': descuentos})
 
 
 @almacen_required
@@ -194,7 +253,6 @@ def lista_productos(request):
 
 @almacen_required
 def toggle_estado_producto(request, producto_id):
-    """ Permite pausar/desactivar o reactivar un producto (Soft Delete) """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -220,15 +278,13 @@ def toggle_estado_producto(request, producto_id):
 
 @vendedor_required
 def pos_ventas(request):
-    # En el POS solo mostramos los productos ACTIVOS y con existencia
+    inicializar_descuentos_base()
     productos = Producto.objects.filter(activo=True, stock_actual__gt=0).select_related('categoria').prefetch_related('aplicaciones__marca')
-    categorias = Categoria.objects.all()
-    marcas = MarcaAuto.objects.all()
+    descuentos_activos = DescuentoConfig.objects.filter(activo=True).order_by('porcentaje')
 
     context = {
         'productos': productos,
-        'categorias': categorias,
-        'marcas': marcas,
+        'descuentos_activos': descuentos_activos,
     }
     return render(request, 'sistema/pos_ventas.html', context)
 
@@ -253,7 +309,6 @@ def procesar_venta(request):
                 items_a_procesar = []
 
                 for item in carrito:
-                    # Si es un pedido especial temporal del catálogo externo, no busca ID en BD
                     if item.get('es_especial'):
                         precio_unitario = Decimal(str(item['precio']))
                         cant = Decimal(str(item['cantidad']))
@@ -303,7 +358,6 @@ def procesar_venta(request):
                     item['producto'].stock_actual -= item['cantidad']
                     item['producto'].save()
 
-                # Marca la cotización como CONVERTIDA de manera explícita
                 if cotizacion_id:
                     try:
                         cot = Cotizacion.objects.get(id=int(cotizacion_id))
@@ -367,8 +421,7 @@ def editar_producto(request, producto_id):
 
 @vendedor_required
 def lista_ventas(request):
-    """ Historial completo de ventas con opción de consultar/imprimir cada ticket """
-    ventas = Venta.objects.select_related('vendedor').prefetch_related('detalles__producto').order_by('-fecha_venta')
+    ventas = Venta.objects.select_related('vendedor', 'corte').prefetch_related('detalles__producto').order_by('-fecha_venta')
     
     query = request.GET.get('q', '').strip()
     fecha_filtro = request.GET.get('fecha', '').strip()
@@ -395,24 +448,83 @@ def lista_ventas(request):
     return render(request, 'sistema/lista_ventas.html', context)
 
 
+# ==========================================
+# CORTE DE CAJA FORMAL & HISTORIAL
+# ==========================================
 @vendedor_required
 def corte_caja_view(request):
+    """Muestra el balance actual de las ventas NO CORTADAS y el historial de cortes anteriores."""
     inicio_dia, fin_dia, hoy = get_rango_dia_local()
-    
-    ventas_turno = Venta.objects.filter(fecha_venta__range=(inicio_dia, fin_dia)).order_by('-fecha_venta')
+
+    # Solo las ventas que aún no pertenecen a ningún corte
+    ventas_pendientes = Venta.objects.filter(corte__isnull=True).order_by('-fecha_venta')
+    total_en_caja = ventas_pendientes.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
+    num_ventas_pendientes = ventas_pendientes.count()
+
+    # Cotizaciones de hoy
     cotizaciones_turno = Cotizacion.objects.filter(fecha_creacion__range=(inicio_dia, fin_dia)).count()
 
-    total_cobrado = ventas_turno.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
-    num_notas = ventas_turno.count()
+    # Historial de cortes pasados
+    cortes_historial = CorteCaja.objects.select_related('usuario').order_by('-fecha_cierre')[:30]
 
     context = {
-        'total_cobrado': total_cobrado,
-        'num_notas': num_notas,
+        'total_en_caja': total_en_caja,
+        'num_ventas_pendientes': num_ventas_pendientes,
         'cotizaciones_turno': cotizaciones_turno,
-        'ventas_turno': ventas_turno,
-        'fecha_corte': hoy,
+        'ventas_pendientes': ventas_pendientes,
+        'cortes_historial': cortes_historial,
+        'fecha_hoy': hoy,
     }
     return render(request, 'sistema/corte_caja.html', context)
+
+
+@vendedor_required
+def efectuar_cierre_caja(request):
+    """Cierra el turno formalmente, agrupa las ventas en un CorteCaja y genera UN SOLO log en auditoría."""
+    if request.method == 'POST':
+        ventas_a_cortar = Venta.objects.filter(corte__isnull=True)
+        num_ventas = ventas_a_cortar.count()
+
+        if num_ventas == 0:
+            messages.warning(request, 'No hay ventas pendientes para realizar un corte de caja.')
+            return redirect('corte_caja')
+
+        total_cobrado = ventas_a_cortar.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
+        observaciones = request.POST.get('observaciones', '').strip()
+
+        with transaction.atomic():
+            corte = CorteCaja.objects.create(
+                usuario=request.user,
+                total_cobrado=total_cobrado,
+                num_ventas=num_ventas,
+                observaciones=observaciones
+            )
+
+            ventas_a_cortar.update(corte=corte)
+
+            LogAuditoria.objects.create(
+                usuario=request.user,
+                accion=f"Cierre de Caja #{corte.id}",
+                detalles=f"Corte realizado por {request.user.username}. Total: ${total_cobrado:.2f} con {num_ventas} ventas liquidadas."
+            )
+
+        messages.success(request, f'¡Corte #{corte.id} completado con éxito! Total cerrado: ${total_cobrado:.2f}')
+        return redirect('imprimir_corte_ticket', corte_id=corte.id)
+
+    return redirect('corte_caja')
+
+
+@vendedor_required
+def imprimir_corte_ticket(request, corte_id):
+    """Imprime el comprobante formal del corte de caja con formato idéntico a las cotizaciones."""
+    corte = get_object_or_404(CorteCaja.objects.select_related('usuario').prefetch_related('ventas_incluidas__vendedor'), id=corte_id)
+    ventas = corte.ventas_incluidas.all()
+
+    context = {
+        'corte': corte,
+        'ventas': ventas,
+    }
+    return render(request, 'sistema/corte_pdf.html', context)
 
 
 @vendedor_required
@@ -423,6 +535,7 @@ def guardar_cotizacion(request):
             carrito = data.get('carrito', [])
             cliente_nombre = data.get('cliente_nombre', 'Cliente Mostrador').strip() or 'Cliente Mostrador'
             cliente_telefono = data.get('cliente_telefono', '').strip()
+            cliente_email = data.get('cliente_email', '').strip()
 
             if not carrito:
                 return JsonResponse({'success': False, 'message': 'La cotización no puede estar vacía.'})
@@ -431,12 +544,10 @@ def guardar_cotizacion(request):
                 subtotal_cotizacion = Decimal('0.00')
                 detalles_a_crear = []
 
-                # Categoría por defecto si no existe
                 categoria_default = Categoria.objects.first()
                 if not categoria_default:
                     categoria_default, _ = Categoria.objects.get_or_create(nombre='Varios')
 
-                # Producto comodín BLINDADO con todos los campos posibles requeridos
                 producto_especial_comodin, _ = Producto.objects.get_or_create(
                     sku='PEDIDO-ESPECIAL',
                     defaults={
@@ -478,6 +589,7 @@ def guardar_cotizacion(request):
                     vendedor=request.user,
                     cliente_nombre=cliente_nombre,
                     cliente_telefono=cliente_telefono,
+                    cliente_email=cliente_email or None,
                     subtotal=subtotal_cotizacion,
                     total=subtotal_cotizacion,
                     estado='PENDIENTE'
@@ -495,7 +607,7 @@ def guardar_cotizacion(request):
                 LogAuditoria.objects.create(
                     usuario=request.user,
                     accion=f"Cotización generada #{cotizacion.id}",
-                    detalles=f"Cliente: {cliente_nombre} | Total: ${subtotal_cotizacion:.2f}"
+                    detalles=f"Cliente: {cliente_nombre} ({cliente_email or 'Sin email'}) | Total: ${subtotal_cotizacion:.2f}"
                 )
 
             return JsonResponse({'success': True, 'cotizacion_id': cotizacion.id, 'message': 'Cotización guardada exitosamente.'})
@@ -505,14 +617,17 @@ def guardar_cotizacion(request):
 
     return JsonResponse({'success': False, 'message': 'Método no permitido.'})
 
+
 @vendedor_required
 def lista_cotizaciones(request):
-    cotizaciones = Cotizacion.objects.select_related('vendedor').prefetch_related('detalles').exclude(estado__in=['CONVERTIDA', 'PROCESADA']).order_by('-fecha_creacion')
+    cotizaciones = Cotizacion.objects.select_related('vendedor').prefetch_related('detalles').order_by('-fecha_creacion')
     
     query = request.GET.get('q', '').strip()
+    estado_filtro = request.GET.get('estado', '').strip()
+
     if query:
         cotizaciones = cotizaciones.filter(
-            Q(id__icontains=query) | Q(cliente_nombre__icontains=query)
+            Q(id__icontains=query) | Q(cliente_nombre__icontains=query) | Q(cliente_email__icontains=query)
         )
 
     ahora = timezone.now()
@@ -520,6 +635,9 @@ def lista_cotizaciones(request):
         if cot.estado == 'PENDIENTE' and ahora > (cot.fecha_creacion + timedelta(hours=24)):
             cot.estado = 'VENCIDA'
             cot.save(update_fields=['estado'])
+
+    if estado_filtro:
+        cotizaciones = cotizaciones.filter(estado=estado_filtro)
 
     context = {
         'cotizaciones': cotizaciones,
@@ -545,19 +663,12 @@ def cargar_cotizacion_pos(request, cotizacion_id):
     try:
         cotizacion = get_object_or_404(Cotizacion.objects.prefetch_related('detalles__producto'), id=cotizacion_id)
         
-        if cotizacion.estado in ['CONVERTIDA', 'PROCESADA']:
-            return JsonResponse({
-                'success': False, 
-                'message': 'Esta cotización ya fue convertida en una venta anterior.'
-            })
-
         items = []
         hubo_cambio_precio = False
 
         for det in cotizacion.detalles.all():
             prod = det.producto
             
-            # Si es un producto real de la BD y NO es el comodín
             if prod and prod.sku != 'PEDIDO-ESPECIAL':
                 precio_actual = prod.precio_venta
                 if precio_actual != det.precio_cotizado:
@@ -576,7 +687,6 @@ def cargar_cotizacion_pos(request, cotizacion_id):
                     'es_especial': False
                 })
             else:
-                # Si es un ítem de pedido especial (o comodín)
                 items.append({
                     'id': f'ESP-{det.id}',
                     'sku': 'ESP',
@@ -593,8 +703,10 @@ def cargar_cotizacion_pos(request, cotizacion_id):
         return JsonResponse({
             'success': True,
             'cotizacion_id': cotizacion.id,
+            'estado': cotizacion.estado,
             'cliente_nombre': cotizacion.cliente_nombre,
             'cliente_telefono': cotizacion.cliente_telefono,
+            'cliente_email': cotizacion.cliente_email or '',
             'items': items,
             'hubo_cambio_precio': hubo_cambio_precio
         })
@@ -715,11 +827,9 @@ def lista_auditoria(request):
 
 @almacen_required
 def cargar_catalogo_proveedor(request):
-    """ Permite cargar masivamente listas de precios externas (Excel) en ListaPrecioProveedor """
     if request.method == 'POST' and request.FILES.get('archivo_excel'):
         excel_file = request.FILES['archivo_excel']
         
-        # Validar extensión del archivo
         if not excel_file.name.endswith(('.xlsx', '.xls')):
             messages.error(request, 'Por favor, selecciona un archivo de Excel válido (.xlsx o .xls).')
             return redirect('cargar_catalogo_proveedor')
@@ -731,9 +841,8 @@ def cargar_catalogo_proveedor(request):
             registros_creados = 0
             registros_actualizados = 0
 
-            # Mapeo de columnas (empezando en Fila 2 para omitir encabezados):
             for row in sheet.iter_rows(min_row=2, values_only=True):
-                if not row or not row[0]:  # Ignorar filas vacías
+                if not row or not row[0]:
                     continue
                 
                 prov_nombre = str(row[0]).strip() if row[0] else ''
@@ -788,7 +897,6 @@ def cargar_catalogo_proveedor(request):
 
 @vendedor_required
 def buscar_proveedores_ajax(request):
-    """ Consulta AJAX en tiempo real de productos externos/proveedores desde el POS """
     query = request.GET.get('q', '').strip()
     resultados = []
 
@@ -797,7 +905,7 @@ def buscar_proveedores_ajax(request):
             Q(codigo_refaccion__icontains=query) |
             Q(nombre_refaccion__icontains=query) |
             Q(proveedor_negocio__icontains=query)
-        )[:30]  # Limitar a 30 resultados para máximo rendimiento
+        )[:30]
 
         for item in items:
             resultados.append({
