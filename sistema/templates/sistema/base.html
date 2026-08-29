@@ -1,9 +1,10 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}POS Refaccionaria{% endblock %}</title>
+    <title>{% block title %}Refaccionaria Los Paddy's - POS{% endblock %}</title>
     
     <!-- Bootstrap 5 CSS CDN -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -12,108 +13,165 @@
     
     <style>
         :root {
-            --sidebar-width: 260px;
-            --sidebar-bg: #1e293b;
-            --sidebar-hover: #334155;
-            --sidebar-active: #2563eb;
-            --topbar-height: 60px;
+            --sidebar-width: 270px;
+            --brand-dark: #0f172a;
+            --brand-card-bg: #1e293b;
+            --brand-red: #dc2626;
+            --brand-red-hover: #b91c1c;
+            --brand-gold: #f59e0b;
+            --brand-gold-hover: #d97706;
+            --brand-steel: #334155;
+            --bg-app: #eef2f6;
+            --topbar-height: 65px;
         }
 
         body {
             min-height: 100vh;
-            background-color: #f8fafc;
+            background-color: var(--bg-app);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow-x: hidden;
+            color: #1e293b;
         }
 
-        /* Layout Principal */
         #wrapper {
             display: flex;
             width: 100vw;
             max-width: 100%;
+            min-height: 100vh;
             align-items: stretch;
             overflow-x: hidden;
+            position: relative;
         }
 
-        /* Sidebar Styling */
         #sidebar {
             min-width: var(--sidebar-width);
             max-width: var(--sidebar-width);
-            background: var(--sidebar-bg);
+            background: linear-gradient(180deg, #090d16 0%, #111827 50%, #1e293b 100%);
             color: #fff;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             min-height: 100vh;
-            z-index: 1000;
-            box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+            z-index: 1050;
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
         }
 
         #sidebar .sidebar-header {
-            padding: 20px;
-            background: #0f172a;
-            border-bottom: 1px solid #334155;
+            padding: 24px 16px 18px 16px;
+            background: #090d16;
+            border-bottom: 2px solid var(--brand-red);
+            text-align: center;
+        }
+
+        .brand-logo-circle {
+            width: 86px;
+            height: 86px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 3px solid var(--brand-gold);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.35), inset 0 0 10px rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px auto;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        .brand-logo-circle:hover {
+            transform: scale(1.05);
+            border-color: #fbbf24;
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.55);
+        }
+
+        .brand-logo-circle img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .brand-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
+        .brand-subtitle {
+            font-size: 0.72rem;
+            color: var(--brand-gold);
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
         }
 
         #sidebar ul.components {
             padding: 15px 0;
+            flex-grow: 1;
+            overflow-y: auto;
         }
 
         #sidebar ul p {
-            color: #94a3b8;
-            padding: 15px 25px 5px 25px;
-            font-size: 0.75rem;
+            color: #64748b;
+            padding: 16px 25px 6px 25px;
+            font-size: 0.72rem;
             text-transform: uppercase;
-            font-weight: 700;
-            letter-spacing: 1px;
+            font-weight: 800;
+            letter-spacing: 1.2px;
             margin-bottom: 0;
         }
 
         #sidebar ul li a {
-            padding: 12px 25px;
-            font-size: 0.95rem;
+            padding: 11px 24px;
+            font-size: 0.92rem;
             display: flex;
             align-items: center;
             color: #cbd5e1;
             text-decoration: none;
             transition: all 0.2s;
             border-left: 4px solid transparent;
+            font-weight: 500;
         }
 
         #sidebar ul li a:hover {
-            color: #fff;
-            background: var(--sidebar-hover);
-            border-left-color: #60a5fa;
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.06);
+            border-left-color: var(--brand-gold);
+            padding-left: 28px;
         }
 
         #sidebar ul li.active > a {
-            color: #fff;
-            background: var(--sidebar-hover);
-            border-left-color: var(--sidebar-active);
-            font-weight: 600;
+            color: #ffffff;
+            background: linear-gradient(90deg, rgba(220, 38, 38, 0.2) 0%, rgba(220, 38, 38, 0.02) 100%);
+            border-left-color: var(--brand-red);
+            font-weight: 700;
         }
 
         #sidebar ul li a i {
             margin-right: 12px;
             width: 20px;
             text-align: center;
-            font-size: 1.1rem;
+            font-size: 1.05rem;
         }
 
-        /* Main Content Styling */
         #content {
             flex: 1;
-            min-width: 0; /* CRUCIAL: Permite que el flex-child se reduzca sin empujar la pantalla */
+            min-width: 0;
             min-height: 100vh;
-            transition: all 0.3s;
             display: flex;
             flex-direction: column;
+            background: var(--bg-app);
+            transition: all 0.3s ease;
         }
 
-        /* Topbar */
         .top-navbar {
             height: var(--topbar-height);
             background: #ffffff;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            padding: 0 25px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            padding: 0 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -121,19 +179,47 @@
             width: 100%;
         }
 
-        .user-badge {
-            font-size: 0.8rem;
-            padding: 4px 10px;
-            border-radius: 20px;
+        .user-avatar-badge {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--brand-dark), var(--brand-steel));
+            color: var(--brand-gold);
+            border: 2px solid rgba(245, 158, 11, 0.4);
         }
 
-        /* Responsive Sidebar */
+        /* Capa oscurecedora para celular al abrir menú */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1040;
+            backdrop-filter: blur(2px);
+        }
+
+        /* Ajustes Responsivos Móviles */
         @media (max-width: 768px) {
             #sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
                 margin-left: calc(-1 * var(--sidebar-width));
             }
             #sidebar.active {
                 margin-left: 0;
+            }
+            .sidebar-overlay.active {
+                display: block;
+            }
+            .top-navbar {
+                padding: 0 12px;
+            }
+            .brand-terminal-title {
+                display: none;
             }
         }
     </style>
@@ -143,18 +229,28 @@
 
 <div id="wrapper">
     {% if user.is_authenticated %}
+    <!-- Fondo oscuro en móviles -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <!-- Sidebar / Menú Lateral -->
     <nav id="sidebar">
-        <div class="sidebar-header d-flex align-items-center justify-content-between">
-            <a href="{% url 'dashboard' %}" class="text-white text-decoration-none fw-bold fs-5">
-                <i class="fa-solid fa-gears text-warning me-2"></i>Refaccionaria
+        <div class="sidebar-header position-relative">
+            <button type="button" id="sidebarCloseBtn" class="btn btn-sm text-white position-absolute top-0 end-0 m-2 d-md-none" aria-label="Cerrar">
+                <i class="fa-solid fa-xmark fs-5"></i>
+            </button>
+            <a href="{% url 'dashboard' %}" class="text-decoration-none d-block">
+                <div class="brand-logo-circle">
+                    <img src="{% static 'img/logo_paddys.png' %}" alt="Los Paddy's" onerror="this.onerror=null; this.src='https://cdn-icons-png.flaticon.com/512/3097/3097180.png';">
+                </div>
+                <div class="brand-title">Los Paddy's</div>
+                <div class="brand-subtitle">Refaccionaria POS</div>
             </a>
         </div>
 
         <ul class="list-unstyled components">
             <li>
                 <a href="{% url 'dashboard' %}">
-                    <i class="fa-solid fa-chart-line text-info"></i> Dashboard General
+                    <i class="fa-solid fa-gauge-high text-info"></i> Dashboard General
                 </a>
             </li>
 
@@ -173,7 +269,7 @@
             </li>
             <li>
                 <a href="{% url 'lista_cotizaciones' %}">
-                    <i class="fa-solid fa-file-invoice-dollar text-info"></i> Cotizaciones
+                    <i class="fa-solid fa-file-invoice-dollar text-warning"></i> Cotizaciones
                 </a>
             </li>
             <li>
@@ -183,7 +279,7 @@
             </li>
             {% endif %}
 
-            <!-- MODULO ALMACENISTA -->
+            <!-- MODULO INVENTARIO & ALMACÉN (ACCESIBLE POR ALMACENISTA Y ADMIN) -->
             {% if user.rol.nombre == 'Almacenista' or user.is_superuser or user.rol.nombre == 'Administrador' %}
             <p>Inventario & Almacén</p>
             <li>
@@ -192,20 +288,32 @@
                 </a>
             </li>
             <li>
+                <a href="{% url 'gestion_categorias' %}">
+                    <i class="fa-solid fa-tags text-warning"></i> Líneas de Producto
+                </a>
+            </li>
+            <li>
                 <a href="{% url 'lista_productos' %}?filtro=stock_bajo">
                     <i class="fa-solid fa-triangle-exclamation text-danger"></i> Alertas Stock Bajo
                 </a>
             </li>
+            <!-- OPCION DE EXCEL EXTERNO COMENTADA SIN ROMPER CÓDIGO
             <li>
                 <a href="{% url 'cargar_catalogo_proveedor' %}">
                     <i class="fa-solid fa-file-excel text-success"></i> Cargar Excel Proveedor
                 </a>
             </li>
+            -->
             {% endif %}
 
             <!-- MODULO ADMINISTRADOR -->
             {% if user.is_superuser or user.rol.nombre == 'Administrador' %}
             <p>Administración</p>
+            <li>
+                <a href="{% url 'gestion_descuentos' %}">
+                    <i class="fa-solid fa-percent text-warning"></i> Descuentos POS
+                </a>
+            </li>
             <li>
                 <a href="{% url 'lista_usuarios' %}">
                     <i class="fa-solid fa-users-gear text-primary"></i> Gestión Usuarios
@@ -227,28 +335,31 @@
         <header class="top-navbar">
             <div class="d-flex align-items-center">
                 {% if user.is_authenticated %}
-                <button type="button" id="sidebarCollapse" class="btn btn-light btn-sm me-3 border d-md-none">
+                <button type="button" id="sidebarCollapse" class="btn btn-outline-dark btn-sm me-2 d-md-none shadow-sm" aria-label="Abrir Menú">
                     <i class="fa-solid fa-bars"></i>
                 </button>
                 {% endif %}
-                <span class="text-muted fw-semibold">Sistema de Control Interno POS</span>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-dark text-warning border me-2 fw-bold px-2 py-1">TERMINAL</span>
+                    <span class="text-secondary fw-semibold small brand-terminal-title">Sistema Central de Control Interno POS</span>
+                </div>
             </div>
 
             {% if user.is_authenticated %}
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2 gap-sm-3">
                 <div class="d-flex align-items-center">
-                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 35px; height: 35px;">
+                    <div class="user-avatar-badge rounded-circle d-flex align-items-center justify-content-center me-2 shadow-sm">
                         <i class="fa-solid fa-user"></i>
                     </div>
-                    <div class="d-none d-sm-block">
-                        <div class="fw-bold fs-6 lh-1">{{ user.username }}</div>
-                        <small class="text-muted">
+                    <div>
+                        <div class="fw-bold fs-6 lh-1 text-dark">{{ user.username }}</div>
+                        <small class="text-muted d-block mt-1">
                             {% if user.is_superuser %}
-                                <span class="badge bg-danger user-badge">Superusuario</span>
+                                <span class="badge bg-danger">Superusuario</span>
                             {% elif user.rol %}
-                                <span class="badge bg-secondary user-badge">{{ user.rol.nombre }}</span>
+                                <span class="badge bg-secondary">{{ user.rol.nombre }}</span>
                             {% else %}
-                                <span class="badge bg-dark user-badge">Sin Rol</span>
+                                <span class="badge bg-dark">Sin Rol</span>
                             {% endif %}
                         </small>
                     </div>
@@ -256,8 +367,8 @@
 
                 <form action="{% url 'logout' %}" method="post" class="m-0">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3" title="Cerrar Sesión">
-                        <i class="fa-solid fa-right-from-bracket me-1"></i> Salir
+                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-2 px-sm-3 fw-bold shadow-sm" title="Cerrar Sesión">
+                        <i class="fa-solid fa-right-from-bracket me-1"></i> <span class="d-none d-sm-inline">Salir</span>
                     </button>
                 </form>
             </div>
@@ -265,9 +376,8 @@
         </header>
 
         <!-- Área de Contenido Dinámico -->
-        <main class="p-3 p-md-4 flex-grow-1" style="min-width: 0; overflow-x: hidden;">
+        <main class="p-2 p-sm-3 p-md-4 flex-grow-1" style="min-width: 0; overflow-x: hidden;">
             {% block content %}
-            <!-- Aquí se inyecta la vista correspondiente -->
             {% block extra_content %}{% endblock %}
             {% endblock %}
         </main>
@@ -278,16 +388,25 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    // Toggle para menú responsive
     document.addEventListener("DOMContentLoaded", function () {
         const sidebarCollapse = document.getElementById('sidebarCollapse');
+        const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
         const sidebar = document.getElementById('sidebar');
 
-        if (sidebarCollapse) {
-            sidebarCollapse.addEventListener('click', function () {
-                sidebar.classList.toggle('active');
-            });
+        function toggleSidebar() {
+            if (sidebar) sidebar.classList.toggle('active');
+            if (sidebarOverlay) sidebarOverlay.classList.toggle('active');
         }
+
+        function closeSidebar() {
+            if (sidebar) sidebar.classList.remove('active');
+            if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+        }
+
+        if (sidebarCollapse) sidebarCollapse.addEventListener('click', toggleSidebar);
+        if (sidebarCloseBtn) sidebarCloseBtn.addEventListener('click', closeSidebar);
+        if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
     });
 </script>
 

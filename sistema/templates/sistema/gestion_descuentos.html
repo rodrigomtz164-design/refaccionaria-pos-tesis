@@ -15,50 +15,125 @@
     {% endif %}
 
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
         <div>
             <h2 class="h3 fw-bold mb-1 text-dark">
-                <i class="fa-solid fa-percent text-primary me-2"></i>Administración de Descuentos POS
+                <i class="fa-solid fa-percent text-danger me-2"></i>Administración de Descuentos POS
             </h2>
-            <p class="text-muted small mb-0">Habilita o deshabilita qué opciones de descuento pueden aplicar los cajeros/vendedores en el mostrador.</p>
+            <p class="text-muted small mb-0">Crea, edita el nombre, modifica el porcentaje o habilita/deshabilita los descuentos disponibles en la caja.</p>
         </div>
-        <a href="{% url 'dashboard_admin' %}" class="btn btn-outline-secondary fw-semibold">
-            <i class="fa-solid fa-arrow-left me-1"></i> Volver al Panel
-        </a>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-success fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoDescuento">
+                <i class="fa-solid fa-plus me-1"></i> Agregar Nivel de Descuento
+            </button>
+            <a href="{% url 'dashboard_admin' %}" class="btn btn-outline-secondary fw-semibold">
+                <i class="fa-solid fa-arrow-left me-1"></i> Volver al Panel
+            </a>
+        </div>
     </div>
 
-    <!-- Formulario de Descuentos Dinámicos -->
-    <div class="card border-0 shadow-sm" style="max-width: 800px;">
-        <div class="card-header bg-dark text-white py-3">
-            <h5 class="fw-bold mb-0"><i class="fa-solid fa-sliders text-warning me-2"></i>Niveles de Descuento Configurables</h5>
+    <!-- Tarjeta de Descuentos Dinámicos -->
+    <div class="card border-0 shadow-sm" style="max-width: 900px;">
+        <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0"><i class="fa-solid fa-sliders text-warning me-2"></i>Niveles de Descuento en Caja</h5>
         </div>
         <div class="card-body p-4">
             <form method="POST">
                 {% csrf_token %}
-                <p class="text-muted small mb-4">
-                    Selecciona los porcentajes que deseas que aparezcan activos en la pantalla de cobro del POS:
-                </p>
+                <input type="hidden" name="accion" value="actualizar_masivo">
 
-                <div class="list-group mb-4">
-                    {% for desc in descuentos %}
-                    <label class="list-group-item d-flex justify-content-between align-items-center py-3">
-                        <div class="d-flex align-items-center">
-                            <input class="form-check-input me-3 fs-5" type="checkbox" name="desc_{{ desc.id }}" value="1" {% if desc.activo %}checked{% endif %}>
-                            <div>
-                                <strong class="text-dark d-block">{{ desc.nombre }}</strong>
-                                <small class="text-muted">Porcentaje aplicable: <strong>{{ desc.porcentaje }}%</strong> sobre el total de la nota.</small>
-                            </div>
-                        </div>
-                        <span class="badge {% if desc.activo %}bg-success{% else %}bg-secondary{% endif %} fs-6 px-3 py-2">
-                            {{ desc.porcentaje }}%
-                        </span>
-                    </label>
-                    {% endfor %}
+                <div class="table-responsive mb-4">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light small text-muted text-uppercase">
+                            <tr>
+                                <th style="width: 70px;" class="text-center">Activo</th>
+                                <th>Nombre / Motivo del Descuento</th>
+                                <th style="width: 150px;">Porcentaje (%)</th>
+                                <th style="width: 90px;" class="text-center">Eliminar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for desc in descuentos %}
+                            <tr>
+                                <!-- Switch / Checkbox Activo -->
+                                <td class="text-center">
+                                    <div class="form-check form-switch d-inline-block">
+                                        <input class="form-check-input" type="checkbox" name="desc_activo_{{ desc.id }}" value="1" {% if desc.activo %}checked{% endif %}>
+                                    </div>
+                                </td>
+                                <!-- Nombre Editable -->
+                                <td>
+                                    <input type="text" name="desc_nombre_{{ desc.id }}" class="form-control fw-bold text-dark" value="{{ desc.nombre }}" required>
+                                </td>
+                                <!-- Porcentaje Editable -->
+                                <td>
+                                    <div class="input-group">
+                                        <input type="number" name="desc_porcentaje_{{ desc.id }}" class="form-control fw-bold text-danger text-center" min="1" max="100" value="{{ desc.porcentaje }}" required>
+                                        <span class="input-group-text bg-light fw-bold">%</span>
+                                    </div>
+                                </td>
+                                <!-- Botón Eliminar Nivel -->
+                                <td class="text-center">
+                                    <button type="submit" name="eliminar_id" value="{{ desc.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Seguro que deseas eliminar el nivel {{ desc.nombre }} ({{ desc.porcentaje }}%)?');" title="Eliminar este descuento">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    <i class="fa-solid fa-circle-exclamation fa-2x mb-2 d-block opacity-40"></i>
+                                    No hay descuentos configurados. Agrega uno con el botón superior.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
 
+                {% if descuentos %}
                 <div class="d-flex justify-content-end">
                     <button type="submit" class="btn btn-primary fw-bold px-4 py-2 shadow-sm">
                         <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Cambios de Descuentos
+                    </button>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Crear Nuevo Nivel de Descuento -->
+<div class="modal fade" id="modalNuevoDescuento" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="crear_nuevo">
+                <div class="modal-header bg-dark text-white py-3">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fa-solid fa-plus text-warning me-2"></i>Nuevo Nivel de Descuento
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark small">Nombre / Descripción</label>
+                        <input type="text" name="nuevo_nombre" class="form-control" placeholder="Ej. Descuento Aniversario / Amigo Mecánico" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark small">Porcentaje a descontar</label>
+                        <div class="input-group">
+                            <input type="number" name="nuevo_porcentaje" class="form-control fw-bold text-danger text-center fs-5" min="1" max="100" placeholder="Ej. 12" required>
+                            <span class="input-group-text bg-light fw-bold fs-5">%</span>
+                        </div>
+                        <small class="text-muted">Ingresa el valor entero (ej: 10 para 10%).</small>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary fw-semibold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Descuento
                     </button>
                 </div>
             </form>

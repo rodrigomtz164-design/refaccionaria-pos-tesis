@@ -1,6 +1,6 @@
 {% extends 'sistema/base.html' %}
 
-{% block title %}Corte de Caja - Refaccionaria Los Paddys{% endblock %}
+{% block title %}Corte de Caja - Refaccionaria Los Paddy's{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -37,7 +37,7 @@
         </div>
         <div>
             {% if num_ventas_pendientes > 0 %}
-            <button type="button" class="btn btn-danger fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalConfirmarCorte">
+            <button type="button" class="btn btn-danger fw-bold shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#modalConfirmarCorte" style="background: linear-gradient(135deg, #dc2626, #991b1b); border: none;">
                 <i class="fa-solid fa-lock me-1"></i> Efectuar Cierre de Caja
             </button>
             {% else %}
@@ -50,12 +50,12 @@
 
     <!-- TARJETAS RESUMEN DE CORTE ACTIVO -->
     <div class="row g-3 mb-4">
-        <!-- Tarjeta: Efectivo Pendiente -->
+        <!-- Tarjeta 1: Total Acumulado Pendiente -->
         <div class="col-12 col-md-4">
             <div class="card border-0 shadow-sm border-start border-4 border-success p-3 h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <span class="text-muted fw-bold small text-uppercase">Efectivo Pendiente de Corte</span>
+                        <span class="text-muted fw-bold small text-uppercase">Total Pendiente de Corte</span>
                         <h2 class="fw-bold text-success mb-0 mt-1">${{ total_en_caja|floatformat:2 }}</h2>
                         <small class="text-muted">Total acumulado desde el último corte</small>
                     </div>
@@ -66,13 +66,13 @@
             </div>
         </div>
 
-        <!-- Tarjeta: Notas por Liquidar (Enlace a Historial de Ventas) -->
+        <!-- Tarjeta 2: Tickets por Contabilizar -->
         <div class="col-12 col-md-4">
             <a href="{% url 'lista_ventas' %}" class="card-link-hover d-block h-100">
                 <div class="card border-0 shadow-sm border-start border-4 border-primary p-3 h-100">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <span class="text-muted fw-bold small text-uppercase">Notas por Liquidar</span>
+                            <span class="text-muted fw-bold small text-uppercase">Tickets por Contabilizar</span>
                             <h2 class="fw-bold text-dark mb-0 mt-1">{{ num_ventas_pendientes }}</h2>
                             <small class="text-primary fw-semibold">
                                 <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Ver historial de ventas
@@ -86,21 +86,29 @@
             </a>
         </div>
 
-        <!-- Tarjeta: Cotizaciones del Día (Enlace a Cotizaciones) -->
+        <!-- Tarjeta 3: Cotizaciones del Día con Desglose -->
         <div class="col-12 col-md-4">
             <a href="{% url 'lista_cotizaciones' %}" class="card-link-hover d-block h-100">
-                <div class="card border-0 shadow-sm border-start border-4 border-info p-3 h-100">
-                    <div class="d-flex align-items-center justify-content-between">
+                <div class="card border-0 shadow-sm border-start border-4 border-warning p-3 h-100">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
                         <div>
-                            <span class="text-muted fw-bold small text-uppercase">Cotizaciones del Día</span>
-                            <h2 class="fw-bold text-dark mb-0 mt-1">{{ cotizaciones_turno }}</h2>
-                            <small class="text-info fw-semibold">
-                                <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Ver lista de cotizaciones
-                            </small>
+                            <span class="text-muted fw-bold small text-uppercase">Cotizaciones de Hoy</span>
+                            <h3 class="fw-bold text-dark mb-0">{{ cotizaciones_hoy_total }}</h3>
                         </div>
-                        <div class="bg-info-subtle p-3 rounded-circle text-info">
-                            <i class="fa-solid fa-file-invoice-dollar fs-3"></i>
+                        <div class="bg-warning-subtle p-2 rounded-circle text-warning">
+                            <i class="fa-solid fa-file-invoice-dollar fs-4"></i>
                         </div>
+                    </div>
+                    <div class="d-flex gap-1 flex-wrap pt-1 border-top" style="font-size: 0.75rem;">
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning" title="Vigentes hoy">
+                            {{ cotiz_hoy_pendientes }} Vigentes
+                        </span>
+                        <span class="badge bg-success-subtle text-success border border-success" title="Vendidas hoy">
+                            {{ cotiz_hoy_convertidas }} Vendidas
+                        </span>
+                        <span class="badge bg-danger-subtle text-danger border border-danger" title="Vencidas hoy">
+                            {{ cotiz_hoy_vencidas }} Vencidas
+                        </span>
                     </div>
                 </div>
             </a>
@@ -134,6 +142,7 @@
                                     <th class="ps-3">Folio Venta</th>
                                     <th>Hora Cobro</th>
                                     <th>Vendedor / Cajero</th>
+                                    <th class="text-center">Forma de Pago</th>
                                     <th class="text-end">Subtotal</th>
                                     <th class="text-center">Descuento</th>
                                     <th class="text-end">Total</th>
@@ -143,12 +152,27 @@
                             <tbody>
                                 {% for v in ventas_pendientes %}
                                 <tr>
-                                    <td class="ps-3 fw-bold text-primary">#{{ v.id }}</td>
+                                    <td class="ps-3 fw-bold text-danger">#{{ v.id }}</td>
                                     <td>{{ v.fecha_venta|date:"d/m/Y H:i:s" }}</td>
                                     <td>
                                         <span class="badge bg-light text-dark border">
                                             <i class="fa-solid fa-user me-1 text-secondary"></i>{{ v.vendedor.username }}
                                         </span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if v.metodo_pago == 'TARJETA' %}
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-bold">
+                                                <i class="fa-solid fa-credit-card me-1"></i>Tarjeta
+                                            </span>
+                                        {% elif v.metodo_pago == 'TRANSFERENCIA' %}
+                                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle fw-bold">
+                                                <i class="fa-solid fa-mobile-screen me-1"></i>Transferencia
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold">
+                                                <i class="fa-solid fa-money-bill-wave me-1"></i>Efectivo
+                                            </span>
+                                        {% endif %}
                                     </td>
                                     <td class="text-end">${{ v.subtotal|floatformat:2 }}</td>
                                     <td class="text-center">
@@ -173,7 +197,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted">
+                                    <td colspan="8" class="text-center py-5 text-muted">
                                         <i class="fa-solid fa-circle-check fs-2 d-block mb-2 text-success"></i>
                                         No hay ventas pendientes. Todo el dinero ha sido cortado y cerrado debidamente.
                                     </td>
@@ -237,13 +261,13 @@
     </div>
 </div>
 
-<!-- Modal para Confirmar Cierre Formal de Caja -->
+<!-- Modal para Confirmar Cierre Formal de Caja (Con Clave para Vendedor) -->
 <div class="modal fade" id="modalConfirmarCorte" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <form method="POST" action="{% url 'efectuar_cierre_caja' %}">
                 {% csrf_token %}
-                <div class="modal-header bg-danger text-white">
+                <div class="modal-header bg-danger text-white py-3">
                     <h5 class="modal-title fw-bold">
                         <i class="fa-solid fa-lock me-2"></i>Confirmar Cierre de Turno / Caja
                     </h5>
@@ -252,13 +276,23 @@
                 <div class="modal-body p-4">
                     <div class="alert alert-warning border-0 small mb-3">
                         <i class="fa-solid fa-triangle-exclamation me-1"></i>
-                        Esta acción cerrará las <strong>{{ num_ventas_pendientes }} ventas</strong> acumuladas y reiniciará el saldo en caja a <strong>$0.00</strong>.
+                        Esta acción agrupará las <strong>{{ num_ventas_pendientes }} ventas</strong> del turno y reiniciará el saldo en caja a <strong>$0.00</strong>.
                     </div>
                     
                     <div class="text-center py-2 mb-3 bg-light rounded-3">
                         <span class="text-muted small text-uppercase fw-bold">Monto Total a Entregar</span>
                         <h2 class="text-success fw-bold mb-0">${{ total_en_caja|floatformat:2 }}</h2>
                     </div>
+
+                    {% if not user.is_superuser and user.rol.nombre != 'Administrador' %}
+                    <div class="mb-3 p-3 bg-danger-subtle rounded-3 border border-danger-subtle">
+                        <label for="admin_password" class="form-label fw-bold text-danger small mb-1">
+                            <i class="fa-solid fa-key me-1"></i> Contraseña de Administrador / Supervisor
+                        </label>
+                        <input type="password" name="admin_password" id="admin_password" class="form-control fw-bold" placeholder="Ingresa clave para autorizar el corte" required autocomplete="off">
+                        <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">Un encargado debe autorizar el cierre formal del turno.</small>
+                    </div>
+                    {% endif %}
 
                     <div class="mb-3">
                         <label for="observaciones" class="form-label fw-bold text-dark small">Notas / Observaciones del Cierre (Opcional)</label>

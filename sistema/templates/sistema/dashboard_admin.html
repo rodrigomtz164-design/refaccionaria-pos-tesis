@@ -1,20 +1,32 @@
 {% extends 'sistema/base.html' %}
 
-{% block title %}Dashboard Administrador - POS Refaccionaria{% endblock %}
+{% block title %}Dashboard Administrador - Refaccionaria Los Paddy's{% endblock %}
 
 {% block extra_css %}
 <style>
-    .card-hover {
+    .kpi-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.85rem;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .card-hover:hover {
+    .kpi-card:hover {
         transform: translateY(-3px);
-        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08) !important;
+    }
+    .kpi-icon {
+        width: 52px;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-size: 1.35rem;
     }
     .badge-online {
         display: inline-block;
-        width: 9px;
-        height: 9px;
+        width: 10px;
+        height: 10px;
         background-color: #22c55e;
         border-radius: 50%;
         box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
@@ -24,40 +36,34 @@
 
 {% block content %}
 <div class="container-fluid py-2">
-    <!-- Header -->
+    <!-- Header Limpio: Solo Botón Abrir Caja con Estilo Rojo Racing -->
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div>
             <h2 class="h3 fw-bold mb-0 text-dark">
-                <i class="fa-solid fa-chart-pie text-primary me-2"></i>Panel del Administrador
+                <i class="fa-solid fa-gauge-high text-danger me-2"></i>Panel del Administrador
             </h2>
-            <p class="text-muted mb-0">Resumen operativo, métricas del negocio y estado del inventario.</p>
+            <p class="text-muted mb-0 small">Métricas en tiempo real, operaciones diarias y balance general del inventario.</p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{% url 'gestion_descuentos' %}" class="btn btn-outline-warning fw-bold shadow-sm text-dark">
-                <i class="fa-solid fa-percent me-1"></i> Descuentos POS
-            </a>
-            <a href="{% url 'pos_ventas' %}" class="btn btn-outline-primary fw-bold shadow-sm">
-                <i class="fa-solid fa-file-invoice-dollar me-1"></i> Cotizador
-            </a>
-            <a href="{% url 'pos_ventas' %}" class="btn btn-success fw-bold shadow-sm">
-                <i class="fa-solid fa-cash-register me-1"></i> Abrir Caja / POS
+        <div>
+            <a href="{% url 'pos_ventas' %}" class="btn btn-danger fw-bold shadow-sm px-4 py-2" style="background: linear-gradient(135deg, #dc2626, #991b1b); border: none;">
+                <i class="fa-solid fa-cash-register me-2"></i> Abrir Caja / POS
             </a>
         </div>
     </div>
 
     <!-- TARJETAS DE MÉTRICAS (KPIs) -->
     <div class="row g-3 mb-4">
-        <!-- Tarjeta: Ventas Hoy y Operaciones -->
+        <!-- Ventas Hoy -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
-                <div class="card-body">
+            <div class="card kpi-card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body p-3">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <span class="text-muted fw-semibold small text-uppercase">Ventas Hoy</span>
+                            <span class="text-muted fw-bold small text-uppercase">Ventas Hoy</span>
                             <h3 class="fw-bold text-dark mt-1 mb-0">${{ total_ventas_hoy|floatformat:2 }}</h3>
                         </div>
-                        <div class="bg-success-subtle p-3 rounded-circle text-success">
-                            <i class="fa-solid fa-sack-dollar fs-4"></i>
+                        <div class="kpi-icon bg-success-subtle text-success">
+                            <i class="fa-solid fa-sack-dollar"></i>
                         </div>
                     </div>
                     <small class="text-muted mt-2 d-block">
@@ -67,61 +73,61 @@
             </div>
         </div>
 
-        <!-- Tarjeta: Stock Crítico con Enlace Directo -->
+        <!-- Stock Crítico -->
         <div class="col-12 col-sm-6 col-xl-3">
             <a href="{% url 'lista_productos' %}?filtro=stock_bajo" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning card-hover">
-                    <div class="card-body">
+                <div class="card kpi-card border-0 shadow-sm h-100 border-start border-4 border-danger">
+                    <div class="card-body p-3">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <span class="text-muted fw-semibold small text-uppercase">Stock Crítico</span>
+                                <span class="text-muted fw-bold small text-uppercase">Stock Crítico</span>
                                 <h3 class="fw-bold text-danger mt-1 mb-0">{{ cant_bajo_stock }}</h3>
                             </div>
-                            <div class="bg-warning-subtle p-3 rounded-circle text-warning">
-                                <i class="fa-solid fa-triangle-exclamation fs-4"></i>
+                            <div class="kpi-icon bg-danger-subtle text-danger">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
                             </div>
                         </div>
-                        <small class="text-primary fw-semibold mt-2 d-block">
-                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Ver productos a reabastecer
+                        <small class="text-danger fw-semibold mt-2 d-block">
+                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Ver refacciones a reabastecer
                         </small>
                     </div>
                 </div>
             </a>
         </div>
 
-        <!-- Tarjeta: Cotizaciones Registradas -->
+        <!-- Cotizaciones -->
         <div class="col-12 col-sm-6 col-xl-3">
             <a href="{% url 'lista_cotizaciones' %}" class="text-decoration-none">
-                <div class="card border-0 shadow-sm h-100 border-start border-4 border-info card-hover">
-                    <div class="card-body">
+                <div class="card kpi-card border-0 shadow-sm h-100 border-start border-4 border-warning">
+                    <div class="card-body p-3">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <span class="text-muted fw-semibold small text-uppercase">Cotizaciones</span>
+                                <span class="text-muted fw-bold small text-uppercase">Cotizaciones</span>
                                 <h3 class="fw-bold text-dark mt-1 mb-0">{{ cotizaciones_mes }}</h3>
                             </div>
-                            <div class="bg-info-subtle p-3 rounded-circle text-info">
-                                <i class="fa-solid fa-file-invoice-dollar fs-4"></i>
+                            <div class="kpi-icon bg-warning-subtle text-warning">
+                                <i class="fa-solid fa-file-invoice-dollar"></i>
                             </div>
                         </div>
                         <small class="text-muted mt-2 d-block">
-                            <i class="fa-solid fa-clock-rotate-left me-1"></i> {{ num_cotiz_hoy }} emitidas el día de hoy
+                            <i class="fa-solid fa-clock-rotate-left me-1"></i> {{ num_cotiz_hoy }} emitidas hoy
                         </small>
                     </div>
                 </div>
             </a>
         </div>
 
-        <!-- Tarjeta: Personal / Usuarios y Accesos -->
+        <!-- Personal / Usuarios y Mini-Botones -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
-                <div class="card-body">
+            <div class="card kpi-card border-0 shadow-sm h-100 border-start border-4 border-primary">
+                <div class="card-body p-3">
                     <div class="d-flex align-items-center justify-content-between">
                         <div>
-                            <span class="text-muted fw-semibold small text-uppercase">Personal / Usuarios</span>
+                            <span class="text-muted fw-bold small text-uppercase">Personal / Usuarios</span>
                             <h3 class="fw-bold text-dark mt-1 mb-0">{{ total_usuarios }} <span class="fs-6 fw-normal text-muted">registrados</span></h3>
                         </div>
-                        <div class="bg-primary-subtle p-3 rounded-circle text-primary">
-                            <i class="fa-solid fa-users fs-4"></i>
+                        <div class="kpi-icon bg-primary-subtle text-primary">
+                            <i class="fa-solid fa-users"></i>
                         </div>
                     </div>
                     <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-1">
@@ -129,8 +135,10 @@
                             <span class="badge-online me-2"></span> {{ usuarios_en_linea }} en línea
                         </small>
                         <div>
-                            <a href="{% url 'gestion_descuentos' %}" class="badge bg-warning text-dark text-decoration-none me-1" title="Configurar descuentos">Descuentos</a>
-                            <a href="{% url 'lista_usuarios' %}" class="badge bg-primary text-decoration-none me-1">Gestionar</a>
+                            <a href="{% url 'gestion_descuentos' %}" class="btn btn-xs btn-warning text-dark fw-bold px-2 py-0" style="font-size: 0.75rem;" title="Configurar descuentos">
+                                <i class="fa-solid fa-percent me-1"></i>Descuentos
+                            </a>
+                            <a href="{% url 'lista_usuarios' %}" class="badge bg-primary text-decoration-none">Gestionar</a>
                             <a href="{% url 'lista_auditoria' %}" class="badge bg-danger text-decoration-none">Logs</a>
                         </div>
                     </div>
@@ -139,16 +147,34 @@
         </div>
     </div>
 
-    <!-- SECCIÓN DE GRÁFICA DE VENTAS -->
+    <!-- SECCIÓN DE DOBLE GRÁFICA 50/50 -->
     <div class="row g-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
+        <!-- Gráfica 1: Comportamiento de Ventas (Líneas) -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm h-100 rounded-3" style="border: 1px solid #e2e8f0 !important;">
                 <div class="card-header bg-white py-3 border-0 fw-bold text-dark d-flex align-items-center justify-content-between">
-                    <span><i class="fa-solid fa-chart-line text-primary me-2"></i>Comportamiento de Ventas</span>
-                    <span class="badge bg-light text-dark border">En Tiempo Real</span>
+                    <span><i class="fa-solid fa-chart-line text-danger me-2"></i>Comportamiento de Ventas</span>
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">En Tiempo Real</span>
                 </div>
-                <div class="card-body p-4">
-                    <canvas id="chartVentas" height="90"></canvas>
+                <div class="card-body p-3 d-flex align-items-center justify-content-center">
+                    <div style="height: 250px; width: 100%;">
+                        <canvas id="chartVentas"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfica 2: Distribución por Categoría (Dona) -->
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm h-100 rounded-3" style="border: 1px solid #e2e8f0 !important;">
+                <div class="card-header bg-white py-3 border-0 fw-bold text-dark d-flex align-items-center justify-content-between">
+                    <span><i class="fa-solid fa-chart-pie text-warning me-2"></i>Distribución de Refacciones</span>
+                    <a href="{% url 'lista_productos' %}" class="btn btn-sm btn-outline-secondary">Ver Catálogo</a>
+                </div>
+                <div class="card-body p-3 d-flex align-items-center justify-content-center">
+                    <div style="height: 250px; width: 100%;">
+                        <canvas id="chartCategoriasAdmin"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -161,53 +187,92 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        const ctx = document.getElementById('chartVentas').getContext('2d');
-        
-        const labels = {{ labels_ventas|safe }};
-        const data = {{ data_ventas|safe }};
+        // --- 1. GRÁFICA DE VENTAS (LÍNEA) ---
+        const ctxVentas = document.getElementById('chartVentas');
+        if (ctxVentas) {
+            const labelsV = {{ labels_ventas|safe }};
+            const dataV = {{ data_ventas|safe }};
 
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels.length ? labels : ['Sin Datos'],
-                datasets: [{
-                    label: 'Monto de Venta ($)',
-                    data: data.length ? data : [0],
-                    borderColor: '#2563eb',
-                    backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                    fill: true,
-                    tension: 0.3,
-                    borderWidth: 3,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    pointBackgroundColor: '#2563eb'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return ' Venta: $' + Number(context.raw).toFixed(2);
+            new Chart(ctxVentas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labelsV.length ? labelsV : ['Sin Datos'],
+                    datasets: [{
+                        label: 'Monto de Venta ($)',
+                        data: dataV.length ? dataV : [0],
+                        borderColor: '#dc2626',
+                        backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                        fill: true,
+                        tension: 0.35,
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#dc2626'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ' Venta: $' + Number(context.raw).toFixed(2);
+                                }
                             }
                         }
-                    }
-                },
-                scales: {
-                    y: { 
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return '$' + value;
+                    },
+                    scales: {
+                        y: { 
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value;
+                                }
                             }
                         }
                     }
                 }
+            });
+        }
+
+        // --- 2. GRÁFICA DE CATEGORÍAS (DONA) ---
+        const ctxCat = document.getElementById('chartCategoriasAdmin');
+        if (ctxCat) {
+            const labelsC = {{ cat_nombres|safe|default:"[]" }};
+            const dataC = {{ cat_cantidades|safe|default:"[]" }};
+
+            if (labelsC.length > 0) {
+                new Chart(ctxCat.getContext('2d'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: labelsC,
+                        datasets: [{
+                            data: dataC,
+                            backgroundColor: ['#dc2626', '#f59e0b', '#16a34a', '#0284c7', '#64748b', '#ea580c'],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'right' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return ` ${context.label}: ${context.raw} piezas`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                ctxCat.parentElement.innerHTML = '<p class="text-muted text-center my-auto py-4">Sin datos de productos registrados aún.</p>';
             }
-        });
+        }
     });
 </script>
 {% endblock %}

@@ -18,7 +18,6 @@ class Usuario(AbstractUser):
     rol = models.ForeignKey(Rol, on_delete=models.PROTECT, null=True, blank=True)
     telefono = models.CharField(max_length=15, blank=True, null=True)
 
-    # Evita el choque de permisos con el usuario por defecto de Django
     groups = models.ManyToManyField(
         'auth.Group',
         related_name='usuario_set',
@@ -150,15 +149,22 @@ class CorteCaja(models.Model):
 
 
 class Venta(models.Model):
+    METODOS_PAGO = [
+        ('EFECTIVO', 'Efectivo'),
+        ('TARJETA', 'Tarjeta'),
+        ('TRANSFERENCIA', 'Transferencia'),
+    ]
+
     vendedor = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name='ventas')
     corte = models.ForeignKey(CorteCaja, on_delete=models.SET_NULL, null=True, blank=True, related_name='ventas_incluidas')
     fecha_venta = models.DateTimeField(auto_now_add=True)
     descuento_aplicado = models.DecimalField(max_digits=4, decimal_places=2, default=0.00)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    metodo_pago = models.CharField(max_length=20, choices=METODOS_PAGO, default='EFECTIVO', null=True, blank=True)
 
     def __str__(self):
-        return f"Venta #{self.id} - {self.fecha_venta.strftime('%Y-%m-%d %H:%M')}"
+        return f"Venta #{self.id} - {self.fecha_venta.strftime('%Y-%m-%d %H:%M')} ({self.metodo_pago or 'EFECTIVO'})"
 
 
 class DetalleVenta(models.Model):

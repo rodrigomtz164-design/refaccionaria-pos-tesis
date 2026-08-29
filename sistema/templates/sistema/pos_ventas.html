@@ -1,24 +1,39 @@
 {% extends 'sistema/base.html' %}
 
-{% block title %}Punto de Venta (POS) - Refaccionaria Los Paddys{% endblock %}
+{% block title %}Caja - Refaccionaria Los Paddy's{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* Estilos Enterprise para Terminal POS */
-    .pos-search-input {
-        border-radius: 0.5rem;
-        font-size: 1.15rem;
-        transition: all 0.2s ease;
-    }
-    .pos-search-input:focus {
-        border-color: #2563eb;
-        box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.15);
+    .pos-terminal-wrapper {
+        min-height: calc(100vh - var(--topbar-height) - 20px);
+        display: flex;
+        flex-direction: column;
     }
 
-    .pos-receipt-card {
+    @media (min-width: 992px) {
+        .pos-terminal-wrapper {
+            height: calc(100vh - var(--topbar-height) - 25px);
+            overflow: hidden;
+        }
+    }
+
+    .pos-frame-unified {
         background: #ffffff;
-        border-top: 5px solid #2563eb !important;
+        border: 1px solid #d1d5db;
         border-radius: 0.75rem;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+    }
+
+    .pos-search-box {
+        border-radius: 0 0.4rem 0.4rem 0;
+        font-size: 0.95rem;
+        padding: 0.55rem 0.85rem;
+        border: 1px solid #d1d5db;
+    }
+    .pos-search-box:focus {
+        border-color: #dc2626;
+        box-shadow: 0 0 0 0.15rem rgba(220, 38, 38, 0.15);
     }
 
     .amount-display {
@@ -27,242 +42,292 @@
         letter-spacing: -0.5px;
     }
 
-    .total-banner {
-        background: #f0fdf4;
-        border: 1px dashed #16a34a;
-        border-radius: 0.5rem;
+    .total-banner-hero {
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        border: 2px dashed #16a34a;
+        border-radius: 0.65rem;
         padding: 0.85rem 1.25rem;
     }
 
-    .list-group-sugerencias {
-        max-height: 380px;
+    .tabla-piezas-compact {
+        font-size: 0.82rem;
+    }
+
+    .tabla-piezas-compact th {
+        font-size: 0.74rem;
+        letter-spacing: 0.5px;
+    }
+
+    .list-group-sugerencias-pos {
+        max-height: 280px;
         overflow-y: auto;
-        z-index: 1050;
+        z-index: 1060;
     }
 
-    .badge-granel {
-        background-color: #fef3c7;
-        color: #92400e;
-        border: 1px solid #fde68a;
-    }
-
-    .badge-unidad {
-        background-color: #f1f5f9;
-        color: #475569;
-        border: 1px solid #e2e8f0;
+    @media (max-width: 991px) {
+        .pos-frame-unified {
+            margin-bottom: 1rem;
+        }
+        .tabla-scroll-mobile {
+            max-height: 280px;
+            overflow-y: auto;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Encabezado Módulo -->
-<div class="row mb-3 align-items-center">
-    <div class="col-md-7">
-        <h2 class="fw-bold text-dark mb-1">
-            <i class="fa-solid fa-cash-register text-success me-2"></i>Punto de Venta / Caja
-        </h2>
-        <p class="text-muted mb-0 small">Atención en mostrador, captura acelerada de refacciones y emisión de ventas.</p>
+<div class="container-fluid p-0 pos-terminal-wrapper">
+    <!-- BANNER INDICADOR DE COTIZACIÓN EN CURSO -->
+    <div id="bannerCotizacion" class="alert alert-warning border-warning d-flex justify-content-between align-items-center py-1 px-3 mb-2 shadow-sm" style="display: none !important;">
+        <div class="small">
+            <i class="fa-solid fa-file-invoice-dollar me-2 text-dark fs-6"></i>
+            <strong>Modo Cotización:</strong> Editando Cotización <span id="lblCotizacionId" class="fw-bold">#0</span>.
+        </div>
+        <button class="btn btn-xs btn-outline-dark fw-bold py-0 px-2" id="btnCancelarCotizacion">
+            <i class="fa-solid fa-xmark me-1"></i> Cancelar
+        </button>
     </div>
-    <div class="col-md-5 text-md-end mt-2 mt-md-0">
-        <a href="{% url 'lista_cotizaciones' %}" class="btn btn-outline-primary btn-sm me-2 shadow-sm fw-semibold">
-            <i class="fa-solid fa-file-invoice-dollar me-1"></i>Ver Cotizaciones
-        </a>
-        <span class="badge bg-dark fs-6 px-3 py-2 shadow-sm align-middle">
-            <i class="fa-solid fa-circle-user text-warning me-2"></i>{{ request.user.get_full_name|default:request.user.username }}
-        </span>
-    </div>
-</div>
 
-<!-- BANNER INDICADOR DE COTIZACIÓN EN CURSO -->
-<div id="bannerCotizacion" class="alert alert-warning border-warning d-flex justify-content-between align-items-center py-2 px-3 mb-3 shadow-sm" style="display: none !important;">
-    <div>
-        <i class="fa-solid fa-file-invoice-dollar me-2 fs-5"></i>
-        <strong>Modo Cotización Activa:</strong> Convirtiendo Cotización <span id="lblCotizacionId" class="fw-bold">#0</span> a Venta Directa.
-    </div>
-    <button class="btn btn-sm btn-outline-dark fw-bold" id="btnCancelarCotizacion">
-        <i class="fa-solid fa-xmark me-1"></i> Cancelar Carga
-    </button>
-</div>
-
-<div class="row g-3">
-    <!-- COLUMNA IZQUIERDA: Búsqueda Rápida y Acciones -->
-    <div class="col-lg-5 col-xl-5">
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-body p-4">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <label for="pos_busqueda" class="form-label fw-bold text-dark mb-0 fs-6">
-                        <i class="fa-solid fa-barcode text-primary me-1"></i> Buscar Refacción
-                    </label>
-                    <button type="button" class="btn btn-warning btn-sm fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalProveedoresExternos">
-                        <i class="fa-solid fa-truck-field me-1"></i> Catálogo Proveedores
-                    </button>
-                </div>
-
+    <!-- TERMINAL UNIFICADA RESPONSIVA (PRODUCTOS / CAJA Y COBRO) -->
+    <div class="row g-0 flex-grow-1 pos-frame-unified">
+        <!-- SECCIÓN IZQUIERDA: BUSCADOR + LISTA DE PIEZAS -->
+        <div class="col-12 col-lg-5 d-flex flex-column border-end bg-white" style="min-height: 0;">
+            <div class="p-2 border-bottom bg-light">
                 <div class="position-relative" id="posBuscadorContainer">
-                    <div class="input-group input-group-lg shadow-sm">
-                        <span class="input-group-text bg-primary text-white border-primary">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-danger text-white border-danger px-2">
                             <i class="fa-solid fa-magnifying-glass"></i>
                         </span>
-                        <input type="text" id="pos_busqueda" class="form-control pos-search-input" placeholder="Escribe SKU, 'Balatas', 'Aceite'..." autocomplete="off" autofocus>
+                        <input type="text" id="pos_busqueda" class="form-control pos-search-box fw-semibold" placeholder="SKU o Nombre de pieza..." autocomplete="off" autofocus>
                     </div>
                 </div>
-                
-                <div class="mt-3">
-                    <small class="text-muted d-block">
-                        <i class="fa-solid fa-keyboard me-1 text-secondary"></i> Escribe código o nombre para ver coincidencias al instante.
-                    </small>
-                    <small class="text-muted d-block mt-1">
-                        <i class="fa-solid fa-circle-check me-1 text-success"></i> Al hacer clic en un producto se añade directo a la nota.
-                    </small>
-                </div>
             </div>
-        </div>
 
-        <!-- Guía rápida -->
-        <div class="card border-0 shadow-sm bg-light text-muted">
-            <div class="card-body p-3">
-                <h6 class="fw-bold text-dark small mb-2"><i class="fa-solid fa-circle-info text-info me-1"></i> Guía rápida de mostrador:</h6>
-                <ul class="small mb-0 ps-3">
-                    <li>Los productos a <strong>granel</strong> se pueden fraccionar con decimales (ej. 1.5 L).</li>
-                    <li>Los <strong>pedidos especiales</strong> no descuentan stock local.</li>
-                    <li>Al cobrar, el ticket se abrirá automáticamente en pestaña nueva para impresión.</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- COLUMNA DERECHA: Nota / Ticket de Venta Principal (Caja en Grande) -->
-    <div class="col-lg-7 col-xl-7">
-        <div class="card border-0 shadow-sm pos-receipt-card">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
-                <h5 class="fw-bold mb-0 text-dark">
-                    <i class="fa-solid fa-receipt text-primary me-2"></i>Nota de Venta
-                </h5>
-                <button class="btn btn-sm btn-outline-danger fw-semibold" id="btnVaciarNota">
-                    <i class="fa-solid fa-trash me-1"></i> Vaciar Nota
-                </button>
-            </div>
-            
-            <!-- Listado de Artículos en Nota -->
-            <div class="card-body p-0" style="min-height: 300px; max-height: 380px; overflow-y: auto;">
-                <table class="table table-hover align-middle mb-0" id="tablaCarrito">
-                    <thead class="table-light border-bottom sticky-top">
-                        <tr class="small text-muted text-uppercase">
-                            <th class="ps-3">Refacción / Descripción</th>
-                            <th style="width: 120px;" class="text-center">Cant.</th>
-                            <th class="text-end" style="width: 120px;">Subtotal</th>
-                            <th style="width: 45px;"></th>
+            <div class="flex-grow-1 overflow-auto tabla-scroll-mobile">
+                <table class="table table-hover align-middle mb-0 tabla-piezas-compact" id="tablaCarrito">
+                    <thead class="table-light sticky-top small text-muted text-uppercase">
+                        <tr>
+                            <th class="ps-2" style="width: 85px;">SKU</th>
+                            <th>Descripción</th>
+                            <th class="text-end" style="width: 75px;">Precio</th>
+                            <th class="text-center" style="width: 65px;">Cant.</th>
+                            <th class="text-end" style="width: 85px;">Subtotal</th>
+                            <th style="width: 30px;"></th>
                         </tr>
                     </thead>
                     <tbody id="carritoBody">
                         <tr id="filaVacia">
-                            <td colspan="4" class="text-center py-5 text-muted">
-                                <i class="fa-solid fa-cart-flatbed fa-3x mb-2 d-block text-secondary opacity-50"></i>
-                                <span class="fw-semibold fs-6 d-block text-dark">La nota está vacía</span>
-                                <small>Busca refacciones en el panel izquierdo para agregarlas.</small>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="fa-solid fa-cart-flatbed fa-2x mb-1 d-block opacity-40"></i>
+                                <span class="fw-semibold d-block small">Nota vacía</span>
+                                <small class="text-secondary" style="font-size: 0.7rem;">Escribe en el buscador superior.</small>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- Panel de Totales, Descuentos Dinámicos y Pago -->
-            <div class="card-footer bg-light p-3 p-md-4 border-top">
-                <!-- Selector de Descuentos Dinámicos de BD -->
-                <div class="mb-3">
-                    <label class="form-label fw-bold small text-muted text-uppercase mb-1">Descuento de Vendedor (Habilitados por Admin)</label>
-                    <div class="btn-group w-100 shadow-sm" role="group" id="grupoDescuentos">
+            <div class="p-2 border-top bg-light d-flex justify-content-between align-items-center px-2">
+                <small class="text-muted" style="font-size: 0.72rem;"><i class="fa-solid fa-user text-secondary me-1"></i>{{ request.user.username }}</small>
+                <button class="btn btn-sm btn-link text-danger text-decoration-none fw-bold p-0" style="font-size: 0.75rem;" id="btnVaciarNota">
+                    <i class="fa-solid fa-trash me-1"></i> Vaciar
+                </button>
+            </div>
+        </div>
+
+        <!-- SECCIÓN DERECHA: PANEL DE CAJA Y COBRO -->
+        <div class="col-12 col-lg-7 d-flex flex-column bg-light p-3 justify-content-between">
+            <div>
+                <div class="d-flex align-items-center justify-content-between pb-2 mb-2 border-bottom">
+                    <h5 class="fw-bold text-dark mb-0">
+                        <i class="fa-solid fa-cash-register text-danger me-2"></i>Caja
+                    </h5>
+                    <span class="badge bg-success px-3 py-1">En Línea</span>
+                </div>
+
+                <!-- Selección de Método de Pago -->
+                <div class="mb-2">
+                    <label class="small text-muted fw-bold text-uppercase d-block mb-1">Forma de Pago</label>
+                    <div class="btn-group w-100 shadow-sm" role="group" id="grupoMetodoPago">
+                        <input type="radio" class="btn-check" name="metodoPagoOption" id="pagoEfectivo" value="EFECTIVO" checked>
+                        <label class="btn btn-outline-dark fw-bold py-1" for="pagoEfectivo">
+                            <i class="fa-solid fa-money-bill-wave text-success me-1"></i> Efectivo
+                        </label>
+
+                        <input type="radio" class="btn-check" name="metodoPagoOption" id="pagoTarjeta" value="TARJETA">
+                        <label class="btn btn-outline-dark fw-bold py-1" for="pagoTarjeta">
+                            <i class="fa-solid fa-credit-card text-primary me-1"></i> Tarjeta
+                        </label>
+
+                        <input type="radio" class="btn-check" name="metodoPagoOption" id="pagoTransferencia" value="TRANSFERENCIA">
+                        <label class="btn btn-outline-dark fw-bold py-1" for="pagoTransferencia">
+                            <i class="fa-solid fa-mobile-screen-button text-info me-1"></i> Transferencia
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Descuentos de Vendedor -->
+                <div class="mb-2">
+                    <label class="small text-muted fw-bold text-uppercase d-block mb-1">Descuento Autorizado</label>
+                    <div class="btn-group w-100 shadow-sm flex-wrap" role="group" id="grupoDescuentos">
                         <input type="radio" class="btn-check" name="descuentoOption" id="desc0" value="0" checked>
-                        <label class="btn btn-outline-secondary btn-sm fw-semibold" for="desc0">0%</label>
+                        <label class="btn btn-outline-secondary fw-semibold py-1" for="desc0">0%</label>
 
                         {% for d in descuentos_activos %}
                         <input type="radio" class="btn-check" name="descuentoOption" id="desc{{ d.id }}" value="{{ d.porcentaje }}">
-                        <label class="btn btn-outline-primary btn-sm fw-bold" for="desc{{ d.id }}">{{ d.porcentaje }}%</label>
+                        <label class="btn btn-outline-danger fw-bold py-1" for="desc{{ d.id }}">{{ d.porcentaje }}%</label>
                         {% endfor %}
                     </div>
                 </div>
 
-                <!-- Cuentas y Desglose -->
-                <div class="d-flex justify-content-between mb-1 fs-6">
-                    <span class="text-muted">Subtotal:</span>
-                    <span class="fw-bold text-dark amount-display" id="txtSubtotal">$0.00</span>
+                <!-- Desglose de Subtotales -->
+                <div class="d-flex justify-content-between text-muted fs-6 mb-1">
+                    <span>Subtotal:</span>
+                    <strong class="text-dark amount-display fs-5" id="txtSubtotal">$0.00</strong>
                 </div>
-                <div class="d-flex justify-content-between mb-2 text-danger fs-6" id="boxDescuento" style="display: none !important;">
+                <div class="d-flex justify-content-between text-danger fs-6 mb-2" id="boxDescuento" style="display: none !important;">
                     <span>Descuento aplicado (<span id="lblPorcentajeDesc">0</span>%):</span>
-                    <span class="fw-bold amount-display" id="txtMontoDescuento">-$0.00</span>
+                    <strong class="amount-display fs-5" id="txtMontoDescuento">-$0.00</strong>
                 </div>
 
-                <!-- Banner de TOTAL -->
-                <div class="total-banner d-flex justify-content-between align-items-center mb-3">
-                    <span class="fs-4 fw-bold text-dark">TOTAL:</span>
-                    <span class="fs-1 fw-bold text-success amount-display" id="txtTotal">$0.00</span>
+                <!-- GRAN BANNER TOTAL HERO -->
+                <div class="total-banner-hero d-flex justify-content-between align-items-center mb-3 shadow-sm">
+                    <span class="fs-4 fs-sm-3 fw-bold text-dark">TOTAL:</span>
+                    <span class="fs-2 fs-sm-1 fw-bold text-success amount-display" id="txtTotal">$0.00</span>
                 </div>
 
-                <!-- Entrada de Pago y Cálculo de Cambio -->
-                <div class="row g-2 mb-3">
+                <!-- Entradas de Pago y Cambio -->
+                <div class="row g-2 mb-3" id="seccionEfectivoContenedor">
                     <div class="col-6">
-                        <label for="inputPagaCon" class="form-label small fw-bold text-dark mb-1">Efectivo Recibido</label>
-                        <div class="input-group">
-                            <span class="input-group-text bg-white fw-bold">$</span>
-                            <input type="number" step="0.01" id="inputPagaCon" class="form-control form-control-lg fw-bold amount-display" placeholder="0.00">
+                        <label class="small fw-bold text-muted text-uppercase mb-1" id="lblRecibidoTexto">Efectivo Recibido</label>
+                        <div class="input-group input-group-lg shadow-sm">
+                            <span class="input-group-text bg-white fw-bold fs-4">$</span>
+                            <input type="number" step="0.01" id="inputPagaCon" class="form-control form-control-lg fw-bold amount-display fs-4" placeholder="0.00">
                         </div>
                     </div>
                     <div class="col-6">
-                        <label class="form-label small fw-bold text-dark mb-1">Cambio</label>
-                        <div class="form-control form-control-lg bg-white fw-bold text-primary amount-display d-flex align-items-center" id="txtCambio">$0.00</div>
+                        <label class="small fw-bold text-muted text-uppercase mb-1">Cambio</label>
+                        <div class="form-control form-control-lg bg-white fw-bold text-primary amount-display fs-4 d-flex align-items-center justify-content-center shadow-sm" id="txtCambio" style="min-height: 48px;">
+                            $0.00
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Botones Principales de Acción -->
-                <div class="row g-2">
-                    <div class="col-6">
-                        <button class="btn btn-outline-secondary w-100 fw-bold py-2 shadow-sm" id="btnCotizar">
-                            <i class="fa-solid fa-file-invoice me-1"></i> Cotizar
-                        </button>
-                    </div>
-                    <div class="col-6">
-                        <button class="btn btn-success w-100 fw-bold py-2 shadow-sm fs-5" id="btnCobrar" disabled>
-                            <i class="fa-solid fa-circle-check me-1"></i> Cobrar
-                        </button>
-                    </div>
+            <!-- Botones de Acción -->
+            <div class="row g-2 pt-2 border-top">
+                <div class="col-5">
+                    <button class="btn btn-outline-secondary btn-lg w-100 fw-bold shadow-sm py-2" id="btnCotizar">
+                        <i class="fa-solid fa-file-invoice me-1"></i> Cotizar
+                    </button>
+                </div>
+                <div class="col-7">
+                    <button class="btn btn-success btn-lg w-100 fw-bold shadow-sm py-2 fs-5" id="btnCobrar" disabled style="background: linear-gradient(135deg, #16a34a, #15803d); border: none;">
+                        <i class="fa-solid fa-circle-check me-2"></i> Cobrar
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- MODAL PARA INGRESAR DATOS DE LA COTIZACIÓN -->
+<!-- MODAL SEGURO DE CONFIRMACIÓN DE COBRO -->
+<div class="modal fade" id="modalConfirmarCobro" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white py-3">
+                <h5 class="modal-title fw-bold mb-0">
+                    <i class="fa-solid fa-circle-question me-2"></i>Confirmar Cobro de Venta
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="text-center mb-4">
+                    <small class="text-muted text-uppercase fw-bold">Monto Total a Cobrar</small>
+                    <div class="fs-1 fw-bold text-success amount-display" id="modalTotalCobro">$0.00</div>
+                </div>
+
+                <div class="card bg-light border p-3 rounded-3 mb-3">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted fw-semibold">Forma de Pago:</span>
+                        <span class="fw-bold text-dark badge bg-dark fs-6" id="modalFormaPago">EFECTIVO</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted fw-semibold">Importe Recibido:</span>
+                        <strong class="text-dark fs-6 amount-display" id="modalImporteRecibido">$0.00</strong>
+                    </div>
+                    <div class="d-flex justify-content-between border-top pt-2">
+                        <span class="text-muted fw-semibold">Cambio a Entregar:</span>
+                        <strong class="text-primary fs-5 amount-display" id="modalCambioEntregar">$0.00</strong>
+                    </div>
+                </div>
+
+                <p class="text-secondary small text-center mb-0">
+                    <i class="fa-solid fa-shield-halved text-success me-1"></i>
+                    ¿Estás seguro de asentar esta venta y descontar el stock del inventario?
+                </p>
+            </div>
+            <div class="modal-footer bg-light d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary fw-semibold px-4" data-bs-dismiss="modal">
+                    <i class="fa-solid fa-xmark me-1"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-success fw-bold px-4 fs-6 shadow-sm" id="btnConfirmarVentaFinal">
+                    <i class="fa-solid fa-check-double me-1"></i> Sí, Confirmar y Generar Ticket
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL COTIZACIÓN INTELIGENTE -->
 <div class="modal fade" id="modalCotizacion" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title fw-bold">
-                    <i class="fa-solid fa-file-invoice-dollar text-warning me-2"></i>Generar Cotización Formal
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold mb-0">
+                    <i class="fa-solid fa-file-invoice-dollar text-warning me-2"></i>Guardar Cotización
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
+                <div id="boxOpcionesCotizacion" class="alert alert-warning border-warning mb-3 py-2 px-3 small" style="display: none;">
+                    <span class="fw-bold d-block mb-1"><i class="fa-solid fa-bolt me-1"></i>Trabajando sobre Cotización <span id="lblCotModalId">#0</span>:</span>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="modoCotiz" id="radioActualizarCot" value="actualizar" checked>
+                        <label class="form-check-label fw-bold text-dark" for="radioActualizarCot">
+                            Actualizar esta cotización con las nuevas refacciones
+                        </label>
+                    </div>
+                    <div class="form-check mt-1">
+                        <input class="form-check-input" type="radio" name="modoCotiz" id="radioNuevaCot" value="nueva">
+                        <label class="form-check-label text-secondary" for="radioNuevaCot">
+                            Guardar como una cotización nueva y separada
+                        </label>
+                    </div>
+                </div>
+
                 <div class="mb-3">
-                    <label for="cotiz_cliente" class="form-label fw-bold text-dark">Nombre del Cliente / Taller</label>
-                    <input type="text" id="cotiz_cliente" class="form-control form-control-lg" placeholder="Ej. Juan Pérez / Taller El Pistón" value="Cliente Mostrador">
+                    <label class="form-label fw-bold text-dark small">Nombre del Cliente / Taller</label>
+                    <input type="text" id="cotiz_cliente" class="form-control" placeholder="Ej. Juan Pérez" value="Cliente Mostrador">
                 </div>
                 <div class="row g-2 mb-3">
-                    <div class="col-6">
-                        <label for="cotiz_telefono" class="form-label fw-bold text-dark">Teléfono</label>
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label fw-bold text-dark small">Teléfono</label>
                         <input type="text" id="cotiz_telefono" class="form-control" placeholder="Ej. 5512345678">
                     </div>
-                    <div class="col-6">
-                        <label for="cotiz_email" class="form-label fw-bold text-dark">Correo (Opcional)</label>
+                    <div class="col-12 col-sm-6">
+                        <label class="form-label fw-bold text-dark small">Correo (Opcional)</label>
                         <input type="email" id="cotiz_email" class="form-control" placeholder="cliente@correo.com">
                     </div>
                 </div>
-                <div class="alert alert-info border-0 bg-light-info text-dark small mb-0 rounded-3">
-                    <i class="fa-solid fa-clock text-info me-1"></i> Esta cotización tendrá una vigencia automática de <strong>24 horas</strong>.
+                <div class="alert alert-info border-0 py-2 px-3 text-dark small mb-0 rounded-3">
+                    <i class="fa-solid fa-clock text-info me-1"></i> Vigencia automática de <strong>24 horas</strong>.
                 </div>
             </div>
             <div class="modal-footer bg-light">
                 <button type="button" class="btn btn-secondary fw-semibold" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary fw-bold px-4" id="btnConfirmarCotizacion">
+                <button type="button" class="btn btn-danger fw-bold px-4" id="btnConfirmarCotizacion">
                     <i class="fa-solid fa-floppy-disk me-1"></i> Guardar e Imprimir
                 </button>
             </div>
@@ -270,66 +335,7 @@
     </div>
 </div>
 
-<!-- MODAL BUSCADOR DE PROVEEDORES EXTERNOS -->
-<div class="modal fade" id="modalProveedoresExternos" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
-            <div class="modal-header bg-warning text-dark fw-bold">
-                <h5 class="modal-title fw-bold">
-                    <i class="fa-solid fa-truck-field me-2"></i>Consulta de Catálogos de Proveedores Externos
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                <div class="row g-2 mb-3">
-                    <div class="col-md-9">
-                        <div class="input-group input-group-lg">
-                            <span class="input-group-text bg-light text-secondary border">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                            </span>
-                            <input type="text" id="inputBuscarProveedor" class="form-control" placeholder="Escribe refacción, código o marca del proveedor..." autocomplete="off">
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <button type="button" class="btn btn-dark btn-lg w-100 fw-bold" id="btnBuscarProveedor">
-                            <i class="fa-solid fa-search me-1"></i> Buscar
-                        </button>
-                    </div>
-                </div>
-
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                    <table class="table table-hover align-middle border mb-0" id="tablaResultadosProveedor">
-                        <thead class="table-light sticky-top">
-                            <tr>
-                                <th>Proveedor / Negocio</th>
-                                <th>Código / Refacción</th>
-                                <th>Nombre / Descripción</th>
-                                <th class="text-end">Precio Ref.</th>
-                                <th>Teléfono</th>
-                                <th>Notas</th>
-                                <th class="text-center" style="width: 110px;">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bodyResultadosProveedor">
-                            <tr>
-                                <td colspan="7" class="text-center py-4 text-muted">
-                                    <i class="fa-solid fa-search fa-2x mb-2 opacity-50 d-block"></i>
-                                    Ingresa un término de búsqueda para consultar en la base de datos externa.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer bg-light d-flex justify-content-between">
-                <small class="text-muted"><i class="fa-solid fa-circle-info me-1"></i> Precios de referencia sujetos a cambios por el proveedor externo.</small>
-                <button type="button" class="btn btn-secondary fw-semibold" data-bs-dismiss="modal">Cerrar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Carga del Catálogo Django en Memoria JS para Autocompletado Instantáneo -->
+<!-- Catálogo en memoria JS -->
 <script>
     const catalogoProductosLocal = [
         {% for p in productos %}
@@ -347,11 +353,12 @@
     ];
 </script>
 
-<!-- Lógica Interactiva de la Caja POS -->
+<!-- Lógica del Punto de Venta -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     let carrito = [];
     let porcentajeDescuento = 0;
+    let metodoPagoSeleccionado = 'EFECTIVO';
     let cotizacionCargadaId = null;
 
     const inputBusqueda = document.getElementById('pos_busqueda');
@@ -366,16 +373,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const txtCambio = document.getElementById('txtCambio');
     const btnCobrar = document.getElementById('btnCobrar');
     const btnCotizar = document.getElementById('btnCotizar');
-    
+    const lblRecibidoTexto = document.getElementById('lblRecibidoTexto');
+
+    const modalCotizacion = new bootstrap.Modal(document.getElementById('modalCotizacion'));
+    const modalConfirmarCobro = new bootstrap.Modal(document.getElementById('modalConfirmarCobro'));
+
     const bannerCotizacion = document.getElementById('bannerCotizacion');
     const lblCotizacionId = document.getElementById('lblCotizacionId');
     const btnCancelarCotizacion = document.getElementById('btnCancelarCotizacion');
 
-    const modalCotizacionEl = document.getElementById('modalCotizacion');
-    const modalCotizacion = new bootstrap.Modal(modalCotizacionEl);
-    const modalProvEl = document.getElementById('modalProveedoresExternos');
+    // Manejador de Método de Pago
+    document.querySelectorAll('input[name="metodoPagoOption"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            metodoPagoSeleccionado = this.value;
+            const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+            const total = subtotal - (subtotal * (porcentajeDescuento / 100));
 
-    // --- REVISAR SI HAY UNA COTIZACIÓN RECUPERADA DESDE LA LISTA ---
+            if (metodoPagoSeleccionado === 'TARJETA' || metodoPagoSeleccionado === 'TRANSFERENCIA') {
+                lblRecibidoTexto.textContent = 'Monto Cobrado';
+                inputPagaCon.value = total.toFixed(2);
+                inputPagaCon.disabled = true;
+                txtCambio.innerHTML = `<span class="text-muted">$0.00</span>`;
+            } else {
+                lblRecibidoTexto.textContent = 'Efectivo Recibido';
+                inputPagaCon.disabled = false;
+                inputPagaCon.value = '';
+                calcularCambio(total);
+            }
+        });
+    });
+
+    // Recuperar cotización pendiente
     const cotizacionPendiente = localStorage.getItem('cotizacion_pendiente');
     if (cotizacionPendiente) {
         try {
@@ -385,6 +413,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (cotizacionCargadaId) {
                 bannerCotizacion.style.setProperty('display', 'flex', 'important');
                 lblCotizacionId.textContent = `#${cotizacionCargadaId}`;
+                
+                if (dataCot.cliente_nombre) document.getElementById('cotiz_cliente').value = dataCot.cliente_nombre;
+                if (dataCot.cliente_telefono) document.getElementById('cotiz_telefono').value = dataCot.cliente_telefono;
+                if (dataCot.cliente_email) document.getElementById('cotiz_email').value = dataCot.cliente_email;
             }
 
             if (Array.isArray(dataCot.items)) {
@@ -396,15 +428,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         precio: parseFloat(it.precio || 0),
                         granel: Boolean(it.es_granel || it.granel),
                         unidad: it.unidad_medida || it.unidad || 'Pieza',
-                        stock: parseFloat(it.stock_disponible || it.stock || 999),
+                        stock: parseFloat(it.stock_disponible || it.stock || 0),
                         cantidad: parseFloat(it.cantidad || 1),
                         es_especial: Boolean(it.es_especial)
                     });
                 });
             }
-            setTimeout(renderizarCarrito, 50);
+            setTimeout(renderizarCarrito, 30);
         } catch (e) {
-            console.error("Error al procesar la cotización desde localStorage", e);
             localStorage.clear();
         }
     }
@@ -417,9 +448,9 @@ document.addEventListener('DOMContentLoaded', function() {
         renderizarCarrito();
     });
 
-    // --- AUTOCOMPLETADO EN BUSCADOR DEL POS ---
+    // Autocompletado reactivo
     const sugerenciasDiv = document.createElement('div');
-    sugerenciasDiv.className = 'list-group position-absolute w-100 shadow-lg bg-white border rounded-bottom list-group-sugerencias';
+    sugerenciasDiv.className = 'list-group position-absolute w-100 shadow-lg bg-white border rounded-bottom list-group-sugerencias-pos';
     sugerenciasDiv.style.top = '100%';
     sugerenciasDiv.style.left = '0';
     posBuscadorContainer.appendChild(sugerenciasDiv);
@@ -431,12 +462,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const matches = catalogoProductosLocal.filter(p => 
             p.sku.toLowerCase().includes(q) || p.nombre.toLowerCase().includes(q) || p.categoria.toLowerCase().includes(q)
-        ).slice(0, 8);
+        ).slice(0, 6);
 
         if (matches.length === 0) {
             const noRes = document.createElement('div');
-            noRes.className = 'list-group-item text-muted small py-3 text-center';
-            noRes.innerHTML = '<i class="fa-solid fa-circle-exclamation me-1"></i> No hay refacciones con ese término.';
+            noRes.className = 'list-group-item text-muted small py-2 text-center';
+            noRes.innerHTML = 'Sin coincidencias.';
             sugerenciasDiv.appendChild(noRes);
             return;
         }
@@ -444,20 +475,19 @@ document.addEventListener('DOMContentLoaded', function() {
         matches.forEach(p => {
             const a = document.createElement('a');
             a.href = '#';
-            a.className = 'list-group-item list-group-item-action py-2 d-flex justify-content-between align-items-center';
+            a.className = 'list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center';
+            
+            const badgeStock = p.stock <= 0 
+                ? `<span class="badge bg-danger">Sin Existencias (0)</span>` 
+                : `<small class="text-muted" style="font-size: 0.7rem;">Stock: ${p.stock}</small>`;
+
             a.innerHTML = `
                 <div>
-                    <strong class="text-dark d-block lh-sm">${p.nombre}</strong>
-                    <div class="mt-1">
-                        <span class="badge bg-light text-dark border me-1">${p.sku}</span>
-                        <small class="text-muted me-2">${p.categoria}</small>
-                        <small class="badge ${p.granel ? 'badge-granel' : 'badge-unidad'}">Stock: ${p.stock} ${p.unidad}</small>
-                    </div>
+                    <strong class="text-dark d-block lh-sm" style="font-size: 0.8rem;">${p.nombre}</strong>
+                    <span class="badge bg-dark font-monospace" style="font-size: 0.68rem;">${p.sku}</span>
+                    ${badgeStock}
                 </div>
-                <div class="text-end ps-2">
-                    <span class="fw-bold text-success fs-6 amount-display d-block">$${p.precio.toFixed(2)}</span>
-                    <span class="badge bg-primary text-white mt-1"><i class="fa-solid fa-plus me-1"></i>Agregar</span>
-                </div>
+                <span class="fw-bold text-success amount-display small">$${p.precio.toFixed(2)}</span>
             `;
 
             a.addEventListener('mousedown', function(e) {
@@ -473,9 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.addEventListener('click', function(e) {
-        if (!posBuscadorContainer.contains(e.target)) {
-            sugerenciasDiv.innerHTML = '';
-        }
+        if (!posBuscadorContainer.contains(e.target)) sugerenciasDiv.innerHTML = '';
     });
 
     function agregarAlCarrito(prod) {
@@ -484,10 +512,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (prod.granel) {
                 existe.cantidad += 0.5;
             } else {
-                if (prod.es_especial || existe.cantidad + 1 <= prod.stock) {
+                if (prod.es_especial || cotizacionCargadaId || existe.cantidad + 1 <= prod.stock) {
                     existe.cantidad += 1;
                 } else {
-                    alert('Llegaste al stock máximo disponible para este producto.');
+                    alert('Stock máximo alcanzado (' + prod.stock + ' disp.).');
                 }
             }
         } else {
@@ -506,52 +534,16 @@ document.addEventListener('DOMContentLoaded', function() {
         renderizarCarrito();
     }
 
-    // --- FUNCIÓN PÚBLICA PARA AGREGAR PEDIDO ESPECIAL DESDE EL MODAL PROVEEDORES ---
-    window.agregarEspecialAlCarrito = function(codigo, nombre, proveedor, precioCosto) {
-        const precioSugerido = (parseFloat(precioCosto) * 1.20).toFixed(2);
-        const precioVentaStr = prompt(
-            `Costo Proveedor (${proveedor}): $${precioCosto}\n\nIngresa el PRECIO DE VENTA para el cliente:`, 
-            precioSugerido
-        );
-
-        if (precioVentaStr === null) return;
-
-        const precioVenta = parseFloat(precioVentaStr);
-        if (isNaN(precioVenta) || precioVenta <= 0) {
-            alert("Por favor ingresa un precio válido.");
-            return;
-        }
-
-        const itemEspecial = {
-            id: 'ESP-' + Date.now(),
-            sku: codigo || 'S/C',
-            nombre: `[PEDIDO ESPECIAL - ${proveedor}] ${nombre}`,
-            precio: precioVenta,
-            granel: false,
-            unidad: 'Pieza',
-            stock: 999,
-            es_especial: true
-        };
-
-        agregarAlCarrito(itemEspecial);
-
-        if (modalProvEl) {
-            const instance = bootstrap.Modal.getInstance(modalProvEl);
-            if (instance) instance.hide();
-        }
-    };
-
-    // --- RENDERIZAR NOTA Y TOTALES ---
     function renderizarCarrito() {
         if (!carritoBody) return;
 
         if (carrito.length === 0) {
             carritoBody.innerHTML = `
                 <tr id="filaVacia">
-                    <td colspan="4" class="text-center py-5 text-muted">
-                        <i class="fa-solid fa-cart-flatbed fa-3x mb-2 d-block text-secondary opacity-50"></i>
-                        <span class="fw-semibold fs-6 d-block text-dark">La nota está vacía</span>
-                        <small>Busca refacciones en el panel izquierdo para agregarlas.</small>
+                    <td colspan="6" class="text-center py-5 text-muted">
+                        <i class="fa-solid fa-cart-flatbed fa-2x mb-1 d-block opacity-40"></i>
+                        <span class="fw-semibold d-block small">Nota vacía</span>
+                        <small class="text-secondary" style="font-size: 0.7rem;">Escribe en el buscador superior.</small>
                     </td>
                 </tr>`;
             btnCobrar.disabled = true;
@@ -559,25 +551,30 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        let hayProductosSinStock = false;
         carritoBody.innerHTML = '';
         carrito.forEach((item, index) => {
             const tr = document.createElement('tr');
             const subtotalItem = item.precio * item.cantidad;
+            const sinStock = !item.es_especial && item.stock <= 0;
+
+            if (sinStock) hayProductosSinStock = true;
 
             tr.innerHTML = `
-                <td class="ps-3 py-3">
-                    <div class="fw-bold text-dark lh-sm">${item.nombre}</div>
-                    <small class="text-muted"><span class="badge bg-light text-dark border me-1">${item.sku}</span> $${item.precio.toFixed(2)} / ${item.unidad}</small>
+                <td class="ps-2 py-1">
+                    <span class="badge bg-light text-dark border font-monospace" style="font-size: 0.72rem;">${item.sku}</span>
                 </td>
-                <td class="py-3 text-center">
-                    ${item.granel ? 
-                        `<input type="number" step="0.1" min="0.1" max="${item.stock}" class="form-control form-control-sm input-cant fw-bold px-1 text-center mx-auto" style="max-width: 85px;" data-index="${index}" value="${item.cantidad}">` :
-                        `<input type="number" step="1" min="1" max="${item.stock}" class="form-control form-control-sm input-cant fw-bold px-1 text-center mx-auto" style="max-width: 85px;" data-index="${index}" value="${item.cantidad}">`
-                    }
+                <td class="py-1">
+                    <div class="fw-bold text-dark lh-sm" style="font-size: 0.78rem;">${item.nombre}</div>
+                    ${sinStock ? '<span class="badge bg-warning text-dark" style="font-size: 0.65rem;">Solo Cotizable (0 disp.)</span>' : ''}
                 </td>
-                <td class="text-end fw-bold text-success amount-display py-3 fs-6">$${subtotalItem.toFixed(2)}</td>
-                <td class="text-center pe-3 py-3">
-                    <button class="btn btn-sm btn-link text-danger p-0 btn-eliminar" data-index="${index}" title="Quitar producto"><i class="fa-solid fa-circle-xmark fs-5"></i></button>
+                <td class="py-1 text-end fw-semibold text-secondary" style="font-size: 0.78rem;">$${item.precio.toFixed(2)}</td>
+                <td class="py-1 text-center">
+                    <input type="number" step="${item.granel ? '0.1' : '1'}" min="0.1" class="form-control form-control-sm input-cant fw-bold px-1 text-center mx-auto" style="max-width: 58px; font-size: 0.8rem; padding: 0.2rem;" data-index="${index}" value="${item.cantidad}">
+                </td>
+                <td class="text-end fw-bold text-success amount-display py-1" style="font-size: 0.82rem;">$${subtotalItem.toFixed(2)}</td>
+                <td class="text-center pe-2 py-1">
+                    <button class="btn btn-sm btn-link text-danger p-0 btn-eliminar" data-index="${index}"><i class="fa-solid fa-circle-xmark"></i></button>
                 </td>
             `;
             carritoBody.appendChild(tr);
@@ -588,11 +585,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const idx = parseInt(this.dataset.index);
                 let val = parseFloat(this.value);
                 if (isNaN(val) || val <= 0) val = 1;
-                if (!carrito[idx].es_especial && val > carrito[idx].stock) {
-                    alert('La cantidad supera el stock disponible (' + carrito[idx].stock + ').');
-                    val = carrito[idx].stock;
-                    this.value = val;
-                }
                 carrito[idx].cantidad = val;
                 renderizarCarrito();
             });
@@ -600,17 +592,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.querySelectorAll('.btn-eliminar').forEach(btn => {
             btn.addEventListener('click', function() {
-                const idx = parseInt(this.dataset.index);
-                carrito.splice(idx, 1);
+                carrito.splice(parseInt(this.dataset.index), 1);
                 renderizarCarrito();
             });
         });
 
-        btnCobrar.disabled = false;
+        if (hayProductosSinStock) {
+            btnCobrar.disabled = true;
+            btnCobrar.title = "Hay productos sin existencias en almacén. Solo puedes cotizar.";
+        } else {
+            btnCobrar.disabled = false;
+            btnCobrar.removeAttribute('title');
+        }
+
         actualizarTotales();
     }
 
-    // --- OPCIONES DE DESCUENTO ---
     document.querySelectorAll('input[name="descuentoOption"]').forEach(radio => {
         radio.addEventListener('change', function() {
             porcentajeDescuento = parseInt(this.value);
@@ -634,28 +631,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         txtTotal.textContent = `$${total.toFixed(2)}`;
-        calcularCambio(total);
+
+        if (metodoPagoSeleccionado === 'TARJETA' || metodoPagoSeleccionado === 'TRANSFERENCIA') {
+            inputPagaCon.value = total.toFixed(2);
+            txtCambio.innerHTML = `<span class="text-muted">$0.00</span>`;
+        } else {
+            calcularCambio(total);
+        }
     }
 
     inputPagaCon.addEventListener('input', function() {
-        const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
-        const total = subtotal - (subtotal * (porcentajeDescuento / 100));
-        calcularCambio(total);
+        if (metodoPagoSeleccionado === 'EFECTIVO') {
+            const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+            const total = subtotal - (subtotal * (porcentajeDescuento / 100));
+            calcularCambio(total);
+        }
     });
 
     function calcularCambio(total) {
         const pagaCon = parseFloat(inputPagaCon.value);
         if (!isNaN(pagaCon) && pagaCon >= total && total > 0) {
             const cambio = pagaCon - total;
-            txtCambio.textContent = `$${cambio.toFixed(2)}`;
-            txtCambio.classList.remove('text-danger');
-            txtCambio.classList.add('text-primary');
+            txtCambio.innerHTML = `<span class="text-success">$${cambio.toFixed(2)}</span>`;
         } else {
-            txtCambio.textContent = '$0.00';
+            txtCambio.innerHTML = `$0.00`;
             if (pagaCon < total && pagaCon > 0) {
-                txtCambio.textContent = 'Falta dinero';
-                txtCambio.classList.remove('text-primary');
-                txtCambio.classList.add('text-danger');
+                txtCambio.innerHTML = `<span class="text-danger small fw-bold">Falta dinero</span>`;
             }
         }
     }
@@ -668,21 +669,45 @@ document.addEventListener('DOMContentLoaded', function() {
         renderizarCarrito();
     });
 
-    // --- COBRAR VENTA EN BD E IMPRIMIR TICKET ---
+    // 1er Paso: Validación y Apertura del Modal Seguro
     btnCobrar.addEventListener('click', function() {
         const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
         const total = subtotal - (subtotal * (porcentajeDescuento / 100));
-        const pagaCon = parseFloat(inputPagaCon.value);
+        let pagaCon = parseFloat(inputPagaCon.value);
 
-        if (isNaN(pagaCon) || pagaCon < total) {
-            alert('El monto ingresado en "Efectivo Recibido" es menor al total de la venta.');
-            return;
+        if (metodoPagoSeleccionado === 'TARJETA' || metodoPagoSeleccionado === 'TRANSFERENCIA') {
+            pagaCon = total;
+        } else {
+            if (isNaN(pagaCon) || pagaCon < total) {
+                alert('El efectivo recibido es menor al total.');
+                inputPagaCon.focus();
+                return;
+            }
         }
 
-        if (!confirm('¿Confirmar la venta por $' + total.toFixed(2) + '?')) {
-            return;
+        const cambio = Math.max(pagaCon - total, 0);
+
+        // Llenar el resumen en el modal
+        document.getElementById('modalTotalCobro').textContent = `$${total.toFixed(2)}`;
+        document.getElementById('modalFormaPago').textContent = metodoPagoSeleccionado;
+        document.getElementById('modalImporteRecibido').textContent = `$${pagaCon.toFixed(2)}`;
+        document.getElementById('modalCambioEntregar').textContent = `$${cambio.toFixed(2)}`;
+
+        // Abrir el seguro de confirmación
+        modalConfirmarCobro.show();
+    });
+
+    // 2do Paso: Confirmación Real de la Venta
+    document.getElementById('btnConfirmarVentaFinal').addEventListener('click', function() {
+        const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0);
+        const total = subtotal - (subtotal * (porcentajeDescuento / 100));
+        let pagaCon = parseFloat(inputPagaCon.value);
+
+        if (metodoPagoSeleccionado === 'TARJETA' || metodoPagoSeleccionado === 'TRANSFERENCIA') {
+            pagaCon = total;
         }
 
+        this.disabled = true;
         btnCobrar.disabled = true;
 
         fetch("{% url 'procesar_venta' %}", {
@@ -694,6 +719,7 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({
                 carrito: carrito,
                 descuento: porcentajeDescuento,
+                metodo_pago: metodoPagoSeleccionado,
                 paga_con: pagaCon,
                 cotizacion_id: cotizacionCargadaId
             })
@@ -701,37 +727,55 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                modalConfirmarCobro.hide();
+                const ticketUrl = `/ventas/ticket/${data.venta_id}/?paga_con=${pagaCon}`;
+                window.open(ticketUrl, '_blank', 'noopener,noreferrer');
+
                 localStorage.clear();
                 cotizacionCargadaId = null;
                 bannerCotizacion.style.setProperty('display', 'none', 'important');
-
-                window.open(`/ventas/ticket/${data.venta_id}/?paga_con=${pagaCon}`, '_blank');
-
                 carrito = [];
                 inputPagaCon.value = '';
                 txtCambio.textContent = '$0.00';
+                document.getElementById('desc0').checked = true;
+                document.getElementById('pagoEfectivo').checked = true;
+                metodoPagoSeleccionado = 'EFECTIVO';
+                inputPagaCon.disabled = false;
+                porcentajeDescuento = 0;
+                
                 renderizarCarrito();
-                btnCobrar.disabled = false;
                 inputBusqueda.value = '';
                 inputBusqueda.focus();
             } else {
                 alert('Error al procesar la venta: ' + data.message);
-                btnCobrar.disabled = false;
             }
+            document.getElementById('btnConfirmarVentaFinal').disabled = false;
+            btnCobrar.disabled = false;
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Ocurrió un error al procesar la venta.');
+            alert('Ocurrió un error de conexión al procesar la venta.');
+            document.getElementById('btnConfirmarVentaFinal').disabled = false;
             btnCobrar.disabled = false;
         });
     });
 
-    // --- PROCESO DE COTIZACIÓN ---
+    // Cotización Inteligente
     btnCotizar.addEventListener('click', function() {
         if (carrito.length === 0) {
             alert('Agrega al menos una refacción a la nota para poder cotizar.');
             return;
         }
+
+        const boxOpciones = document.getElementById('boxOpcionesCotizacion');
+        if (cotizacionCargadaId) {
+            boxOpciones.style.display = 'block';
+            document.getElementById('lblCotModalId').textContent = '#' + cotizacionCargadaId;
+            document.getElementById('radioActualizarCot').checked = true;
+        } else {
+            boxOpciones.style.display = 'none';
+        }
+
         modalCotizacion.show();
     });
 
@@ -745,6 +789,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        const radioActualizar = document.getElementById('radioActualizarCot');
+        const debeActualizar = cotizacionCargadaId && radioActualizar && radioActualizar.checked;
+
         this.disabled = true;
 
         fetch("{% url 'guardar_cotizacion' %}", {
@@ -757,20 +804,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 carrito: carrito,
                 cliente_nombre: clienteNombre,
                 cliente_telefono: clienteTelefono,
-                cliente_email: clienteEmail
+                cliente_email: clienteEmail,
+                cotizacion_id: cotizacionCargadaId,
+                actualizar_existente: debeActualizar
             })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 localStorage.clear();
+                cotizacionCargadaId = null;
+                bannerCotizacion.style.setProperty('display', 'none', 'important');
                 modalCotizacion.hide();
-                window.open(`/cotizaciones/imprimir/${data.cotizacion_id}/`, '_blank');
+                window.open(`/cotizaciones/imprimir/${data.cotizacion_id}/`, '_blank', 'noopener,noreferrer');
                 carrito = [];
                 renderizarCarrito();
-                alert('Cotización #' + data.cotizacion_id + ' guardada con éxito.');
             } else {
-                alert('Error al guardar cotización: ' + data.message);
+                alert('Error al procesar cotización: ' + data.message);
             }
             document.getElementById('btnConfirmarCotizacion').disabled = false;
         })
@@ -779,85 +829,6 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Ocurrió un error al procesar la cotización.');
             document.getElementById('btnConfirmarCotizacion').disabled = false;
         });
-    });
-
-    // --- BÚSQUEDA DE PROVEEDORES EXTERNOS VIA AJAX ---
-    const inputBuscarProveedor = document.getElementById('inputBuscarProveedor');
-    const btnBuscarProveedor = document.getElementById('btnBuscarProveedor');
-    const bodyResultadosProveedor = document.getElementById('bodyResultadosProveedor');
-
-    function buscarProveedoresExternos() {
-        const query = inputBuscarProveedor.value.trim();
-        if (!query) {
-            bodyResultadosProveedor.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center py-4 text-muted">
-                        Ingresa un término de búsqueda para consultar la base externa.
-                    </td>
-                </tr>`;
-            return;
-        }
-
-        bodyResultadosProveedor.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center py-4 text-muted">
-                    <i class="fa-solid fa-spinner fa-spin fa-2x me-2 text-warning"></i> Consultando base de proveedores...
-                </td>
-            </tr>`;
-
-        fetch(`{% url 'buscar_proveedores_ajax' %}?q=${encodeURIComponent(query)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (!data.resultados || data.resultados.length === 0) {
-                    bodyResultadosProveedor.innerHTML = `
-                        <tr>
-                            <td colspan="7" class="text-center py-4 text-muted">
-                                No se encontraron refacciones externas con "${query}".
-                            </td>
-                        </tr>`;
-                    return;
-                }
-
-                bodyResultadosProveedor.innerHTML = '';
-                data.resultados.forEach(item => {
-                    const tr = document.createElement('tr');
-                    const nomEsc = item.nombre.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                    const provEsc = item.proveedor.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                    const codEsc = item.codigo.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-
-                    tr.innerHTML = `
-                        <td class="fw-bold text-dark">${item.proveedor}</td>
-                        <td><span class="badge bg-light text-dark border font-monospace">${item.codigo}</span></td>
-                        <td>${item.nombre}</td>
-                        <td class="text-end fw-bold text-success amount-display">$${item.precio}</td>
-                        <td>
-                            ${item.telefono ? `<a href="tel:${item.telefono}" class="btn btn-sm btn-outline-success"><i class="fa-solid fa-phone me-1"></i>${item.telefono}</a>` : '<span class="text-muted small">N/A</span>'}
-                        </td>
-                        <td class="small text-muted">${item.notas}</td>
-                        <td class="text-center">
-                            <button type="button" class="btn btn-warning btn-sm fw-bold text-dark shadow-sm" 
-                                    onclick="agregarEspecialAlCarrito('${codEsc}', '${nomEsc}', '${provEsc}', ${item.precio})">
-                                <i class="fa-solid fa-plus me-1"></i> Cotizar
-                            </button>
-                        </td>
-                    `;
-                    bodyResultadosProveedor.appendChild(tr);
-                });
-            })
-            .catch(err => {
-                console.error(err);
-                bodyResultadosProveedor.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center py-4 text-danger fw-bold">
-                            Error al conectar con la base de datos de proveedores.
-                        </td>
-                    </tr>`;
-            });
-    }
-
-    btnBuscarProveedor.addEventListener('click', buscarProveedoresExternos);
-    inputBuscarProveedor.addEventListener('keyup', function(e) {
-        if (e.key === 'Enter') buscarProveedoresExternos();
     });
 });
 </script>

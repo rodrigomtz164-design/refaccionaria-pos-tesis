@@ -1,0 +1,122 @@
+{% extends 'sistema/base.html' %}
+
+{% block title %}Líneas de Producto - Refaccionaria Los Paddy's{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <!-- Mensajes de Sistema -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm mb-3" role="alert">
+                <i class="fa-solid fa-circle-info me-2"></i>{{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h2 class="h3 fw-bold mb-0 text-dark">
+                <i class="fa-solid fa-tags text-warning me-2"></i>Líneas de Producto / Categorías
+            </h2>
+            <p class="text-muted mb-0">Organización del inventario por departamento o línea de refacción.</p>
+        </div>
+        <a href="{% url 'lista_productos' %}" class="btn btn-warning fw-bold text-dark shadow-sm">
+            <i class="fa-solid fa-boxes-stacked me-1"></i> Ir al Catálogo de Refacciones
+        </a>
+    </div>
+
+    <div class="row g-4">
+        <!-- Tarjeta de Registro de Nueva Línea -->
+        <div class="col-12 col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fa-solid fa-plus-circle text-warning me-2"></i>Registrar Nueva Línea
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" action="{% url 'gestion_categorias' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion_categoria" value="crear">
+                        
+                        <div class="mb-3">
+                            <label for="nombre_categoria" class="form-label fw-bold text-dark small text-uppercase">Nombre de la Categoría</label>
+                            <input type="text" name="nombre_categoria" id="nombre_categoria" class="form-control form-control-lg fw-semibold" placeholder="Ej: Suspensión, Frenos, Iluminación..." required autocomplete="off">
+                            <small class="text-muted mt-1 d-block">Esta categoría se reflejará de inmediato en los filtros del POS y catálogo.</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-warning fw-bold text-dark w-100 py-2 shadow-sm">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Guardar Línea de Producto
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Listado de Líneas con Protección de Eliminación -->
+        <div class="col-12 col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-0">
+                    <h5 class="fw-bold mb-0 text-dark">
+                        <i class="fa-solid fa-list-check text-primary me-2"></i>Líneas Activas ({{ categorias.count }})
+                    </h5>
+                    <span class="badge bg-light text-secondary border">Total Registradas</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small text-muted text-uppercase">
+                                <tr>
+                                    <th class="ps-4">Nombre de Línea</th>
+                                    <th class="text-center">Refacciones Asignadas</th>
+                                    <th class="text-end pe-4">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cat in categorias %}
+                                <tr>
+                                    <td class="ps-4 fw-bold text-dark">
+                                        <i class="fa-solid fa-folder me-2 text-secondary"></i>{{ cat.nombre }}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if cat.num_productos > 0 %}
+                                            <a href="{% url 'lista_productos' %}?categoria={{ cat.id }}" class="badge bg-primary text-decoration-none px-3 py-2" title="Ver refacciones de esta categoría">
+                                                {{ cat.num_productos }} piezas
+                                            </a>
+                                        {% else %}
+                                            <span class="badge bg-light text-muted border px-3 py-2">0 piezas (Vacía)</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <form method="POST" action="{% url 'gestion_categorias' %}" class="d-inline" onsubmit="return confirm('¿Confirmas eliminar la categoría {{ cat.nombre }}?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="accion_categoria" value="eliminar">
+                                            <input type="hidden" name="categoria_id" value="{{ cat.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger px-3 fw-semibold" title="Eliminar categoría">
+                                                <i class="fa-solid fa-trash me-1"></i> Eliminar
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center py-5 text-muted">
+                                        <i class="fa-solid fa-tags fa-2x mb-2 d-block opacity-40"></i>
+                                        No hay categorías registradas.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-light py-2 px-4 small text-muted">
+                    <i class="fa-solid fa-shield-halved text-success me-1"></i> <strong>Protección de Base de Datos:</strong> El sistema bloquea automáticamente la eliminación de cualquier categoría que contenga refacciones asociadas.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

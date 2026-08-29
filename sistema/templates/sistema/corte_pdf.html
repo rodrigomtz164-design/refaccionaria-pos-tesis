@@ -99,6 +99,7 @@
                         <th class="ps-3">Folio</th>
                         <th>Hora</th>
                         <th>Vendedor</th>
+                        <th class="text-center">Método de Pago</th>
                         <th class="text-end">Subtotal</th>
                         <th class="text-center">Descuento</th>
                         <th class="text-end pe-3">Total Cobrado</th>
@@ -110,6 +111,9 @@
                         <td class="ps-3 fw-bold text-primary">#{{ v.id }}</td>
                         <td>{{ v.fecha_venta|date:"H:i:s" }}</td>
                         <td>{{ v.vendedor.username }}</td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border fw-bold">{{ v.metodo_pago|default:"EFECTIVO" }}</span>
+                        </td>
                         <td class="text-end">${{ v.subtotal|floatformat:2 }}</td>
                         <td class="text-center">
                             {% if v.descuento_aplicado > 0 %}
@@ -126,13 +130,13 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center py-3 text-muted">Sin transacciones asociadas.</td>
+                        <td colspan="7" class="text-center py-3 text-muted">Sin transacciones asociadas.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
                 <tfoot class="table-light border-top">
                     <tr class="fw-bold fs-6">
-                        <td colspan="3" class="ps-3 text-uppercase">Total del Turno:</td>
+                        <td colspan="4" class="ps-3 text-uppercase">Total del Turno:</td>
                         <td class="text-end">${{ corte.total_cobrado|floatformat:2 }}</td>
                         <td></td>
                         <td class="text-end pe-3 text-success fs-5">${{ corte.total_cobrado|floatformat:2 }}</td>

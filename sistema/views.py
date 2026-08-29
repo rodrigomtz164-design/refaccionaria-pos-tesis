@@ -5,7 +5,7 @@ from datetime import datetime, time, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Q, Sum, F
+from django.db.models import Q, Sum, F, Count
 from django.http import JsonResponse, HttpResponse
 from django.db import transaction
 from django.utils import timezone
@@ -28,7 +28,7 @@ def get_rango_dia_local():
 
 
 def inicializar_descuentos_base():
-    """Asegura que existan los descuentos predefinidos (2%, 5%, 10%, 15%) si la tabla está vacía."""
+    """Asegura que existan los descuentos predefinidos si la tabla está vacía."""
     if not DescuentoConfig.objects.exists():
         DescuentoConfig.objects.create(nombre="Descuento Mostrador", porcentaje=2, activo=True)
         DescuentoConfig.objects.create(nombre="Descuento Medio", porcentaje=5, activo=True)
@@ -54,20 +54,15 @@ def dashboard_admin(request):
     inicializar_descuentos_base()
     inicio_dia, fin_dia, hoy = get_rango_dia_local()
     
-    # 1. Ventas del día
     ventas_hoy_qs = Venta.objects.filter(fecha_venta__range=(inicio_dia, fin_dia))
     total_ventas_hoy = ventas_hoy_qs.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
     num_ventas_hoy = ventas_hoy_qs.count()
     
-    # 2. Cotizaciones de hoy y totales
     cotizaciones_hoy_qs = Cotizacion.objects.filter(fecha_creacion__range=(inicio_dia, fin_dia))
     num_cotiz_hoy = cotizaciones_hoy_qs.count()
     cotizaciones_mes = Cotizacion.objects.count()
 
-    # 3. Operaciones totales del día
     total_operaciones_hoy = num_ventas_hoy + num_cotiz_hoy
-
-    # 4. Usuarios registrados y En Línea (Sesiones Activas)
     total_usuarios = Usuario.objects.count()
     
     sesiones_activas = Session.objects.filter(expire_date__gte=timezone.now())
@@ -82,13 +77,20 @@ def dashboard_admin(request):
     if usuarios_en_linea == 0 and request.user.is_authenticated:
         usuarios_en_linea = 1
     
-    # 5. Cantidad de Stock Crítico
     cant_bajo_stock = Producto.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True).count()
 
-    # 6. Gráfica de Ventas
     ventas_recientes = Venta.objects.order_by('-fecha_venta')[:12]
     labels_ventas = [timezone.localtime(v.fecha_venta).strftime("%H:%M") for v in reversed(ventas_recientes)]
     data_ventas = [float(v.total) for v in reversed(ventas_recientes)]
+
+    categorias = Categoria.objects.all()
+    cat_nombres = []
+    cat_cantidades = []
+    for cat in categorias:
+        count = Producto.objects.filter(categoria=cat).count()
+        if count > 0:
+            cat_nombres.append(cat.nombre)
+            cat_cantidades.append(count)
 
     context = {
         'total_ventas_hoy': total_ventas_hoy,
@@ -101,25 +103,70 @@ def dashboard_admin(request):
         'cotizaciones_mes': cotizaciones_mes,
         'labels_ventas': json.dumps(labels_ventas),
         'data_ventas': json.dumps(data_ventas),
+        'cat_nombres': json.dumps(cat_nombres),
+        'cat_cantidades': json.dumps(cat_cantidades),
     }
     return render(request, 'sistema/dashboard_admin.html', context)
 
 
 @almacen_required
 def dashboard_almacen(request):
+    if request.method == 'POST':
+        accion_cat = request.POST.get('accion_categoria')
+        
+        if accion_cat == 'crear':
+            nombre_cat = request.POST.get('nombre_categoria', '').strip()
+            if nombre_cat:
+                cat, created = Categoria.objects.get_or_create(nombre=nombre_cat)
+                if created:
+                    LogAuditoria.objects.create(
+                        usuario=request.user,
+                        accion="Creación de Categoría",
+                        detalles=f"Se creó la línea de producto '{nombre_cat}'."
+                    )
+                    messages.success(request, f'Línea de producto "{nombre_cat}" creada correctamente.')
+                else:
+                    messages.warning(request, f'La categoría "{nombre_cat}" ya existe.')
+            return redirect('dashboard_almacen')
+            
+        elif accion_cat == 'eliminar':
+            cat_id = request.POST.get('categoria_id')
+            if cat_id:
+                try:
+                    cat_eliminar = Categoria.objects.get(id=int(cat_id))
+                    num_productos = Producto.objects.filter(categoria=cat_eliminar).count()
+                    
+                    if num_productos > 0:
+                        messages.error(
+                            request, 
+                            f'No se puede eliminar la línea "{cat_eliminar.nombre}" porque tiene {num_productos} refacciones asociadas. '
+                            f'Por seguridad de inventario, primero reasigna o retira los productos.'
+                        )
+                    else:
+                        nombre_del = cat_eliminar.nombre
+                        cat_eliminar.delete()
+                        LogAuditoria.objects.create(
+                            usuario=request.user,
+                            accion="Eliminación de Categoría",
+                            detalles=f"Se eliminó la línea de producto vacía '{nombre_del}'."
+                        )
+                        messages.success(request, f'Línea de producto "{nombre_del}" eliminada correctamente.')
+                except Categoria.DoesNotExist:
+                    pass
+            return redirect('dashboard_almacen')
+
     total_productos = Producto.objects.count()
     productos_bajo = Producto.objects.filter(stock_actual__lte=F('stock_minimo'), activo=True).select_related('categoria')
     total_stock_bajo = productos_bajo.count()
 
-    categorias = Categoria.objects.all()
+    categorias = Categoria.objects.annotate(num_productos=Count('productos')).order_by('nombre')
+    
     cat_nombres = []
     cat_cantidades = []
-
     for cat in categorias:
-        count = Producto.objects.filter(categoria=cat).count()
-        if count > 0:
+        if cat.num_productos > 0:
             cat_nombres.append(cat.nombre)
-            cat_cantidades.append(count)
+            cat_cantidades.append(cat.num_productos)
 
     context = {
         'total_productos': total_productos,
@@ -136,11 +183,15 @@ def dashboard_almacen(request):
 def dashboard_ventas(request):
     inicio_dia, fin_dia, hoy = get_rango_dia_local()
     
-    ventas_hoy = Venta.objects.filter(vendedor=request.user, fecha_venta__range=(inicio_dia, fin_dia)).order_by('fecha_venta')
+    ventas_hoy = Venta.objects.filter(vendedor=request.user, corte__isnull=True, fecha_venta__range=(inicio_dia, fin_dia)).order_by('fecha_venta')
     total_monto_hoy = ventas_hoy.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
     num_ventas_hoy = ventas_hoy.count()
     
-    cotizaciones_vendedor = Cotizacion.objects.filter(vendedor=request.user).count()
+    cotizaciones_vendedor_qs = Cotizacion.objects.filter(vendedor=request.user, fecha_creacion__range=(inicio_dia, fin_dia))
+    cotizaciones_vendedor_hoy = cotizaciones_vendedor_qs.count()
+    cotiz_vend_pendientes = cotizaciones_vendedor_qs.filter(estado='PENDIENTE').count()
+    cotiz_vend_convertidas = cotizaciones_vendedor_qs.filter(Q(estado='CONVERTIDA') | Q(estado='PROCESADA')).count()
+    cotiz_vend_vencidas = cotizaciones_vendedor_qs.filter(estado='VENCIDA').count()
 
     labels_ventas_turno = [timezone.localtime(v.fecha_venta).strftime("%H:%M") for v in ventas_hoy]
     data_ventas_turno = [float(v.total) for v in ventas_hoy]
@@ -148,34 +199,92 @@ def dashboard_ventas(request):
     context = {
         'total_monto_hoy': total_monto_hoy,
         'num_ventas_hoy': num_ventas_hoy,
-        'cotizaciones_vendedor': cotizaciones_vendedor,
+        'cotizaciones_vendedor_hoy': cotizaciones_vendedor_hoy,
+        'cotiz_vend_pendientes': cotiz_vend_pendientes,
+        'cotiz_vend_convertidas': cotiz_vend_convertidas,
+        'cotiz_vend_vencidas': cotiz_vend_vencidas,
         'labels_ventas_turno': json.dumps(labels_ventas_turno),
         'data_ventas_turno': json.dumps(data_ventas_turno),
     }
     return render(request, 'sistema/dashboard_ventas.html', context)
 
 
+# =======================================================
+# GESTIÓN DE DESCUENTOS
+# =======================================================
 @admin_required
 def gestion_descuentos(request):
-    """Permite al Admin activar/desactivar qué porcentajes de descuento se ofrecen en la caja."""
     inicializar_descuentos_base()
 
     if request.method == 'POST':
-        descuentos = DescuentoConfig.objects.all()
-        for desc in descuentos:
-            checkbox_val = request.POST.get(f'desc_{desc.id}')
-            desc.activo = bool(checkbox_val)
-            desc.save(update_fields=['activo'])
+        eliminar_id = request.POST.get('eliminar_id')
+        if eliminar_id:
+            try:
+                desc_eliminar = DescuentoConfig.objects.get(id=int(eliminar_id))
+                nombre_del = desc_eliminar.nombre
+                desc_eliminar.delete()
+                LogAuditoria.objects.create(
+                    usuario=request.user,
+                    accion="Eliminación de Nivel de Descuento",
+                    detalles=f"Se eliminó el nivel '{nombre_del}'."
+                )
+                messages.success(request, f'Se eliminó el descuento "{nombre_del}" correctamente.')
+            except DescuentoConfig.DoesNotExist:
+                pass
+            return redirect('gestion_descuentos')
 
-        LogAuditoria.objects.create(
-            usuario=request.user,
-            accion="Actualización de Descuentos POS",
-            detalles="Se modificaron los porcentajes de descuento habilitados para los vendedores."
-        )
-        messages.success(request, '¡Configuración de descuentos actualizada con éxito!')
-        return redirect('gestion_descuentos')
+        accion = request.POST.get('accion')
+        if accion == 'crear_nuevo':
+            nuevo_nombre = request.POST.get('nuevo_nombre', '').strip()
+            nuevo_porcentaje = request.POST.get('nuevo_porcentaje', '0').strip()
+            try:
+                porc_val = int(nuevo_porcentaje)
+                if nuevo_nombre and 1 <= porc_val <= 100:
+                    DescuentoConfig.objects.create(
+                        nombre=nuevo_nombre,
+                        porcentaje=porc_val,
+                        activo=True
+                    )
+                    LogAuditoria.objects.create(
+                        usuario=request.user,
+                        accion="Creación de Nivel de Descuento",
+                        detalles=f"Nuevo descuento '{nuevo_nombre}' al {porc_val}%."
+                    )
+                    messages.success(request, f'¡Descuento "{nuevo_nombre}" ({porc_val}%) creado con éxito!')
+                else:
+                    messages.error(request, 'Datos inválidos para el nuevo descuento.')
+            except ValueError:
+                messages.error(request, 'El porcentaje debe ser un número entero válido.')
+            return redirect('gestion_descuentos')
 
-    descuentos = DescuentoConfig.objects.all()
+        if accion == 'actualizar_masivo':
+            descuentos = DescuentoConfig.objects.all()
+            for desc in descuentos:
+                nuevo_nom = request.POST.get(f'desc_nombre_{desc.id}', '').strip()
+                nuevo_porc = request.POST.get(f'desc_porcentaje_{desc.id}', '').strip()
+                checkbox_val = request.POST.get(f'desc_activo_{desc.id}')
+
+                if nuevo_nom:
+                    desc.nombre = nuevo_nom
+                try:
+                    p_val = int(nuevo_porc)
+                    if 1 <= p_val <= 100:
+                        desc.porcentaje = p_val
+                except ValueError:
+                    pass
+
+                desc.activo = bool(checkbox_val)
+                desc.save()
+
+            LogAuditoria.objects.create(
+                usuario=request.user,
+                accion="Actualización de Niveles de Descuento",
+                detalles="Se modificaron nombres, porcentajes y estados de descuentos del POS."
+            )
+            messages.success(request, '¡Todos los cambios de descuentos fueron guardados con éxito!')
+            return redirect('gestion_descuentos')
+
+    descuentos = DescuentoConfig.objects.all().order_by('porcentaje')
     return render(request, 'sistema/gestion_descuentos.html', {'descuentos': descuentos})
 
 
@@ -279,7 +388,7 @@ def toggle_estado_producto(request, producto_id):
 @vendedor_required
 def pos_ventas(request):
     inicializar_descuentos_base()
-    productos = Producto.objects.filter(activo=True, stock_actual__gt=0).select_related('categoria').prefetch_related('aplicaciones__marca')
+    productos = Producto.objects.filter(activo=True).select_related('categoria').prefetch_related('aplicaciones__marca')
     descuentos_activos = DescuentoConfig.objects.filter(activo=True).order_by('porcentaje')
 
     context = {
@@ -296,6 +405,10 @@ def procesar_venta(request):
             data = json.loads(request.body)
             carrito = data.get('carrito', [])
             porcentaje_descuento = float(data.get('descuento', 0))
+            metodo_pago = data.get('metodo_pago', 'EFECTIVO').upper()
+            if metodo_pago not in ['EFECTIVO', 'TARJETA', 'TRANSFERENCIA']:
+                metodo_pago = 'EFECTIVO'
+
             paga_con = Decimal(str(data.get('paga_con', 0)))
             cotizacion_id = data.get('cotizacion_id', None)
 
@@ -339,11 +452,15 @@ def procesar_venta(request):
                 monto_descuento = subtotal_venta * descuento_decimal
                 total_venta = subtotal_venta - monto_descuento
 
+                if metodo_pago in ['TARJETA', 'TRANSFERENCIA']:
+                    paga_con = total_venta
+
                 venta = Venta.objects.create(
                     vendedor=request.user,
                     descuento_aplicado=descuento_decimal,
                     subtotal=subtotal_venta,
-                    total=total_venta
+                    total=total_venta,
+                    metodo_pago=metodo_pago
                 )
 
                 for item in items_a_procesar:
@@ -362,21 +479,34 @@ def procesar_venta(request):
                     try:
                         cot = Cotizacion.objects.get(id=int(cotizacion_id))
                         cot.estado = 'CONVERTIDA'
-                        cot.save(update_fields=['estado'])
-                    except (Cotizacion.DoesNotExist, ValueError, TypeError):
+                        cot.subtotal = subtotal_venta
+                        cot.total = total_venta
+                        cot.save(update_fields=['estado', 'subtotal', 'total'])
+
+                        cot.detalles.all().delete()
+                        for item in items_a_procesar:
+                            DetalleCotizacion.objects.create(
+                                cotizacion=cot,
+                                producto=item['producto'],
+                                cantidad=item['cantidad'],
+                                precio_cotizado=item['precio_unitario'],
+                                subtotal=item['subtotal']
+                            )
+                    except Exception:
                         pass
 
                 LogAuditoria.objects.create(
                     usuario=request.user,
                     accion=f"Venta registrada #{venta.id}",
-                    detalles=f"Total: ${total_venta:.2f} | Descuento: {porcentaje_descuento}%"
+                    detalles=f"Total: ${total_venta:.2f} | Pago: {metodo_pago} | Descuento: {porcentaje_descuento}%"
                 )
 
             return JsonResponse({
                 'success': True, 
                 'venta_id': venta.id, 
+                'metodo_pago': metodo_pago,
                 'paga_con': float(paga_con),
-                'cambio': float(paga_con - total_venta),
+                'cambio': float(max(paga_con - total_venta, Decimal('0.00'))),
                 'message': '¡Venta realizada con éxito!'
             })
 
@@ -428,7 +558,7 @@ def lista_ventas(request):
 
     if query:
         ventas = ventas.filter(
-            Q(id__icontains=query) | Q(vendedor__username__icontains=query)
+            Q(id__icontains=query) | Q(vendedor__username__icontains=query) | Q(metodo_pago__icontains=query)
         )
 
     if fecha_filtro:
@@ -453,24 +583,27 @@ def lista_ventas(request):
 # ==========================================
 @vendedor_required
 def corte_caja_view(request):
-    """Muestra el balance actual de las ventas NO CORTADAS y el historial de cortes anteriores."""
     inicio_dia, fin_dia, hoy = get_rango_dia_local()
 
-    # Solo las ventas que aún no pertenecen a ningún corte
     ventas_pendientes = Venta.objects.filter(corte__isnull=True).order_by('-fecha_venta')
     total_en_caja = ventas_pendientes.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
     num_ventas_pendientes = ventas_pendientes.count()
 
-    # Cotizaciones de hoy
-    cotizaciones_turno = Cotizacion.objects.filter(fecha_creacion__range=(inicio_dia, fin_dia)).count()
+    cotizaciones_hoy_qs = Cotizacion.objects.filter(fecha_creacion__range=(inicio_dia, fin_dia))
+    cotizaciones_hoy_total = cotizaciones_hoy_qs.count()
+    cotiz_hoy_pendientes = cotizaciones_hoy_qs.filter(estado='PENDIENTE').count()
+    cotiz_hoy_convertidas = cotizaciones_hoy_qs.filter(Q(estado='CONVERTIDA') | Q(estado='PROCESADA')).count()
+    cotiz_hoy_vencidas = cotizaciones_hoy_qs.filter(estado='VENCIDA').count()
 
-    # Historial de cortes pasados
     cortes_historial = CorteCaja.objects.select_related('usuario').order_by('-fecha_cierre')[:30]
 
     context = {
         'total_en_caja': total_en_caja,
         'num_ventas_pendientes': num_ventas_pendientes,
-        'cotizaciones_turno': cotizaciones_turno,
+        'cotizaciones_hoy_total': cotizaciones_hoy_total,
+        'cotiz_hoy_pendientes': cotiz_hoy_pendientes,
+        'cotiz_hoy_convertidas': cotiz_hoy_convertidas,
+        'cotiz_hoy_vencidas': cotiz_hoy_vencidas,
         'ventas_pendientes': ventas_pendientes,
         'cortes_historial': cortes_historial,
         'fecha_hoy': hoy,
@@ -480,7 +613,6 @@ def corte_caja_view(request):
 
 @vendedor_required
 def efectuar_cierre_caja(request):
-    """Cierra el turno formalmente, agrupa las ventas en un CorteCaja y genera UN SOLO log en auditoría."""
     if request.method == 'POST':
         ventas_a_cortar = Venta.objects.filter(corte__isnull=True)
         num_ventas = ventas_a_cortar.count()
@@ -488,6 +620,25 @@ def efectuar_cierre_caja(request):
         if num_ventas == 0:
             messages.warning(request, 'No hay ventas pendientes para realizar un corte de caja.')
             return redirect('corte_caja')
+
+        autorizado_por = ""
+        if not request.user.is_superuser and (not request.user.rol or request.user.rol.nombre != 'Administrador'):
+            admin_password = request.POST.get('admin_password', '').strip()
+            if not admin_password:
+                messages.error(request, 'Se requiere la contraseña de un Administrador para autorizar el corte.')
+                return redirect('corte_caja')
+
+            es_valido = False
+            admins = Usuario.objects.filter(Q(is_superuser=True) | Q(rol__nombre='Administrador'), is_active=True)
+            for adm in admins:
+                if adm.check_password(admin_password):
+                    es_valido = True
+                    autorizado_por = adm.username
+                    break
+
+            if not es_valido:
+                messages.error(request, 'Contraseña de Administrador incorrecta. El corte fue denegado.')
+                return redirect('corte_caja')
 
         total_cobrado = ventas_a_cortar.aggregate(Sum('total'))['total__sum'] or Decimal('0.00')
         observaciones = request.POST.get('observaciones', '').strip()
@@ -502,10 +653,14 @@ def efectuar_cierre_caja(request):
 
             ventas_a_cortar.update(corte=corte)
 
+            detalle_log = f"Corte #{corte.id} realizado por {request.user.username}. Total: ${total_cobrado:.2f} ({num_ventas} notas)."
+            if autorizado_por:
+                detalle_log += f" [Autorizado por Admin: {autorizado_por}]"
+
             LogAuditoria.objects.create(
                 usuario=request.user,
                 accion=f"Cierre de Caja #{corte.id}",
-                detalles=f"Corte realizado por {request.user.username}. Total: ${total_cobrado:.2f} con {num_ventas} ventas liquidadas."
+                detalles=detalle_log
             )
 
         messages.success(request, f'¡Corte #{corte.id} completado con éxito! Total cerrado: ${total_cobrado:.2f}')
@@ -516,7 +671,6 @@ def efectuar_cierre_caja(request):
 
 @vendedor_required
 def imprimir_corte_ticket(request, corte_id):
-    """Imprime el comprobante formal del corte de caja con formato idéntico a las cotizaciones."""
     corte = get_object_or_404(CorteCaja.objects.select_related('usuario').prefetch_related('ventas_incluidas__vendedor'), id=corte_id)
     ventas = corte.ventas_incluidas.all()
 
@@ -525,6 +679,53 @@ def imprimir_corte_ticket(request, corte_id):
         'ventas': ventas,
     }
     return render(request, 'sistema/corte_pdf.html', context)
+
+
+# ==========================================
+# MÓDULO COTIZACIONES INTELIGENTES
+# ==========================================
+@admin_required
+def eliminar_cotizacion(request, cotizacion_id):
+    if request.method == 'POST':
+        cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+        folio = cotizacion.id
+        cliente = cotizacion.cliente_nombre
+        total = cotizacion.total
+        estado = cotizacion.estado
+        
+        cotizacion.delete()
+        
+        LogAuditoria.objects.create(
+            usuario=request.user,
+            accion=f"Eliminación de Cotización #{folio}",
+            detalles=f"Se eliminó la cotización #{folio} de {cliente} (Estado: {estado}, Total: ${total:.2f})."
+        )
+        messages.success(request, f'Cotización #{folio} de "{cliente}" eliminada con éxito.')
+        return redirect('lista_cotizaciones')
+    
+    return redirect('lista_cotizaciones')
+
+
+@vendedor_required
+def desactivar_cotizacion(request, cotizacion_id):
+    """Permite ocultar/archivar una cotización vencida sin borrarla de la base de datos."""
+    if request.method == 'POST':
+        cotizacion = get_object_or_404(Cotizacion, id=cotizacion_id)
+        
+        if cotizacion.estado == 'VENCIDA':
+            cotizacion.estado = 'CANCELADA'
+            cotizacion.save(update_fields=['estado'])
+            
+            LogAuditoria.objects.create(
+                usuario=request.user,
+                accion=f"Cotización #{cotizacion.id} Archivada",
+                detalles=f"Se archivó/ocultó la cotización vencida de {cotizacion.cliente_nombre}."
+            )
+            messages.success(request, f'Cotización #{cotizacion.id} archivada correctamente.')
+        else:
+            messages.warning(request, 'Solo se pueden archivar cotizaciones vencidas.')
+
+    return redirect('lista_cotizaciones')
 
 
 @vendedor_required
@@ -536,6 +737,8 @@ def guardar_cotizacion(request):
             cliente_nombre = data.get('cliente_nombre', 'Cliente Mostrador').strip() or 'Cliente Mostrador'
             cliente_telefono = data.get('cliente_telefono', '').strip()
             cliente_email = data.get('cliente_email', '').strip()
+            cotizacion_id_existente = data.get('cotizacion_id', None)
+            actualizar_existente = data.get('actualizar_existente', False)
 
             if not carrito:
                 return JsonResponse({'success': False, 'message': 'La cotización no puede estar vacía.'})
@@ -585,6 +788,36 @@ def guardar_cotizacion(request):
                             'subtotal': subtotal_item
                         })
 
+                if cotizacion_id_existente and actualizar_existente:
+                    try:
+                        cotizacion = Cotizacion.objects.get(id=int(cotizacion_id_existente))
+                        cotizacion.cliente_nombre = cliente_nombre
+                        cotizacion.cliente_telefono = cliente_telefono
+                        cotizacion.cliente_email = cliente_email or None
+                        cotizacion.subtotal = subtotal_cotizacion
+                        cotizacion.total = subtotal_cotizacion
+                        cotizacion.estado = 'PENDIENTE'
+                        cotizacion.save()
+
+                        cotizacion.detalles.all().delete()
+                        for d in detalles_a_crear:
+                            DetalleCotizacion.objects.create(
+                                cotizacion=cotizacion,
+                                producto=d['producto'],
+                                cantidad=d['cantidad'],
+                                precio_cotizado=d['precio_cotizado'],
+                                subtotal=d['subtotal']
+                            )
+
+                        LogAuditoria.objects.create(
+                            usuario=request.user,
+                            accion=f"Cotización actualizada #{cotizacion.id}",
+                            detalles=f"Se actualizaron refacciones de #{cotizacion.id} | Nuevo Total: ${subtotal_cotizacion:.2f}"
+                        )
+                        return JsonResponse({'success': True, 'cotizacion_id': cotizacion.id, 'message': f'Cotización #{cotizacion.id} actualizada correctamente.'})
+                    except Cotizacion.DoesNotExist:
+                        pass
+
                 cotizacion = Cotizacion.objects.create(
                     vendedor=request.user,
                     cliente_nombre=cliente_nombre,
@@ -607,7 +840,7 @@ def guardar_cotizacion(request):
                 LogAuditoria.objects.create(
                     usuario=request.user,
                     accion=f"Cotización generada #{cotizacion.id}",
-                    detalles=f"Cliente: {cliente_nombre} ({cliente_email or 'Sin email'}) | Total: ${subtotal_cotizacion:.2f}"
+                    detalles=f"Cliente: {cliente_nombre} | Total: ${subtotal_cotizacion:.2f}"
                 )
 
             return JsonResponse({'success': True, 'cotizacion_id': cotizacion.id, 'message': 'Cotización guardada exitosamente.'})
@@ -620,28 +853,44 @@ def guardar_cotizacion(request):
 
 @vendedor_required
 def lista_cotizaciones(request):
-    cotizaciones = Cotizacion.objects.select_related('vendedor').prefetch_related('detalles').order_by('-fecha_creacion')
+    if request.user.is_superuser or (request.user.rol and request.user.rol.nombre == 'Administrador'):
+        cotizaciones_base = Cotizacion.objects.select_related('vendedor').prefetch_related('detalles').order_by('-fecha_creacion')
+    else:
+        cotizaciones_base = Cotizacion.objects.filter(vendedor=request.user).select_related('vendedor').prefetch_related('detalles').order_by('-fecha_creacion')
     
-    query = request.GET.get('q', '').strip()
     estado_filtro = request.GET.get('estado', '').strip()
+    if estado_filtro:
+        cotizaciones_qs = cotizaciones_base.filter(estado=estado_filtro)
+    else:
+        cotizaciones_qs = cotizaciones_base.exclude(estado='CANCELADA')
+
+    query = request.GET.get('q', '').strip()
+    ver_todas = request.GET.get('ver_todas') == '1'
 
     if query:
-        cotizaciones = cotizaciones.filter(
+        cotizaciones_qs = cotizaciones_qs.filter(
             Q(id__icontains=query) | Q(cliente_nombre__icontains=query) | Q(cliente_email__icontains=query)
         )
 
     ahora = timezone.now()
-    for cot in cotizaciones:
+    for cot in cotizaciones_qs:
         if cot.estado == 'PENDIENTE' and ahora > (cot.fecha_creacion + timedelta(hours=24)):
             cot.estado = 'VENCIDA'
             cot.save(update_fields=['estado'])
 
-    if estado_filtro:
-        cotizaciones = cotizaciones.filter(estado=estado_filtro)
+    total_cotizaciones = cotizaciones_qs.count()
+
+    if not ver_todas:
+        cotizaciones = cotizaciones_qs[:100]
+    else:
+        cotizaciones = cotizaciones_qs
 
     context = {
         'cotizaciones': cotizaciones,
-        'query': query
+        'query': query,
+        'estado_filtro': estado_filtro,
+        'total_cotizaciones': total_cotizaciones,
+        'viendo_todas': ver_todas,
     }
     return render(request, 'sistema/lista_cotizaciones.html', context)
 
@@ -719,22 +968,31 @@ def cargar_cotizacion_pos(request, cotizacion_id):
 def imprimir_ticket_venta(request, venta_id):
     venta = get_object_or_404(Venta.objects.prefetch_related('detalles__producto').select_related('vendedor'), id=venta_id)
     
-    paga_con = request.GET.get('paga_con', Decimal('0.00'))
-    try:
-        paga_con = Decimal(str(paga_con))
-    except Exception:
+    metodo = venta.metodo_pago or 'EFECTIVO'
+    
+    if metodo in ['TARJETA', 'TRANSFERENCIA']:
         paga_con = venta.total
-
-    cambio = paga_con - venta.total if paga_con >= venta.total else Decimal('0.00')
+        cambio = Decimal('0.00')
+    else:
+        paga_con = request.GET.get('paga_con', Decimal('0.00'))
+        try:
+            paga_con = Decimal(str(paga_con))
+        except Exception:
+            paga_con = venta.total
+        cambio = paga_con - venta.total if paga_con >= venta.total else Decimal('0.00')
 
     context = {
         'venta': venta,
         'paga_con': paga_con,
         'cambio': cambio,
+        'metodo_pago': metodo
     }
     return render(request, 'sistema/ticket_venta.html', context)
 
 
+# ==========================================
+# GESTIÓN DE USUARIOS Y AUDITORÍA
+# ==========================================
 @admin_required
 def lista_usuarios(request):
     usuarios = Usuario.objects.select_related('rol').all()
@@ -821,8 +1079,49 @@ def editar_usuario(request, usuario_id):
 
 @admin_required
 def lista_auditoria(request):
-    logs = LogAuditoria.objects.select_related('usuario').order_by('-fecha_hora')[:100]
-    return render(request, 'sistema/lista_auditoria.html', {'logs': logs})
+    logs_qs = LogAuditoria.objects.select_related('usuario').order_by('-fecha_hora')
+    
+    query = request.GET.get('q', '').strip()
+    usuario_id = request.GET.get('usuario', '').strip()
+    fecha_filtro = request.GET.get('fecha', '').strip()
+    ver_todos = request.GET.get('ver_todos') == '1'
+
+    if query:
+        logs_qs = logs_qs.filter(
+            Q(accion__icontains=query) | Q(detalles__icontains=query)
+        )
+
+    if usuario_id:
+        logs_qs = logs_qs.filter(usuario_id=usuario_id)
+
+    if fecha_filtro:
+        try:
+            fecha_obj = datetime.strptime(fecha_filtro, "%Y-%m-%d").date()
+            inicio = timezone.make_aware(datetime.combine(fecha_obj, time.min))
+            fin = timezone.make_aware(datetime.combine(fecha_obj, time.max))
+            logs_qs = logs_qs.filter(fecha_hora__range=(inicio, fin))
+        except ValueError:
+            pass
+
+    total_registros = logs_qs.count()
+
+    if not ver_todos:
+        logs = logs_qs[:100]
+    else:
+        logs = logs_qs
+
+    usuarios = Usuario.objects.all().order_by('username')
+
+    context = {
+        'logs': logs,
+        'usuarios': usuarios,
+        'query': query,
+        'usuario_id': usuario_id,
+        'fecha_filtro': fecha_filtro,
+        'total_registros': total_registros,
+        'viendo_todos': ver_todos,
+    }
+    return render(request, 'sistema/lista_auditoria.html', context)
 
 
 @almacen_required
@@ -918,3 +1217,57 @@ def buscar_proveedores_ajax(request):
             })
 
     return JsonResponse({'resultados': resultados})
+
+
+@login_required
+def gestion_categorias(request):
+    if not request.user.is_superuser and (not request.user.rol or request.user.rol.nombre not in ['Administrador', 'Almacenista']):
+        messages.error(request, 'No tienes permisos para acceder a este módulo.')
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion_categoria')
+
+        if accion == 'crear':
+            nombre = request.POST.get('nombre_categoria', '').strip()
+            if nombre:
+                cat, created = Categoria.objects.get_or_create(nombre=nombre)
+                if created:
+                    LogAuditoria.objects.create(
+                        usuario=request.user,
+                        accion="Creación de Categoría",
+                        detalles=f"Se creó la categoría '{nombre}'."
+                    )
+                    messages.success(request, f'Línea de producto "{nombre}" creada con éxito.')
+                else:
+                    messages.warning(request, f'La categoría "{nombre}" ya existe en el sistema.')
+            return redirect('gestion_categorias')
+
+        elif accion == 'eliminar':
+            cat_id = request.POST.get('categoria_id')
+            if cat_id:
+                try:
+                    cat_obj = Categoria.objects.get(id=int(cat_id))
+                    num_piezas = Producto.objects.filter(categoria=cat_obj).count()
+
+                    if num_piezas > 0:
+                        messages.error(
+                            request, 
+                            f'No se puede eliminar "{cat_obj.nombre}" porque tiene {num_piezas} refacciones asignadas. '
+                            f'Por integridad de inventario, reasigna los productos a otra categoría antes de eliminarla.'
+                        )
+                    else:
+                        nom_del = cat_obj.nombre
+                        cat_obj.delete()
+                        LogAuditoria.objects.create(
+                            usuario=request.user,
+                            accion="Eliminación de Categoría",
+                            detalles=f"Se eliminó la categoría vacía '{nom_del}'."
+                        )
+                        messages.success(request, f'Línea de producto "{nom_del}" eliminada correctamente.')
+                except Categoria.DoesNotExist:
+                    pass
+            return redirect('gestion_categorias')
+
+    categorias = Categoria.objects.annotate(num_productos=Count('productos')).order_by('nombre')
+    return render(request, 'sistema/gestion_categorias.html', {'categorias': categorias})

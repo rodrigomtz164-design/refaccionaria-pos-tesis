@@ -1,163 +1,124 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ticket de Venta #{{ venta.id }} - Refaccionaria Los Paddys</title>
-
+    <title>Ticket #{{ venta.id }} - Los Paddy's</title>
     <style>
+        @page {
+            size: 80mm auto;
+            margin: 0;
+        }
         body {
             font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
-            color: #000;
-            background-color: #f8f9fa;
-            margin: 0;
-            padding: 10px;
-        }
-
-        .ticket-card {
-            background: #fff;
-            max-width: 300px;
+            width: 78mm;
             margin: 0 auto;
-            padding: 15px;
-            border: 1px solid #ddd;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .text-center { text-align: center; }
-        .text-right { text-align: right; }
-        .text-left { text-align: left; }
-
-        .linea {
-            border-bottom: 1px dashed #000;
-            margin: 8px 0;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
+            padding: 8px 4px;
+            color: #000;
             font-size: 11px;
+            line-height: 1.25;
         }
-
-        th { border-bottom: 1px solid #000; text-align: left; }
-        td { padding: 3px 0; vertical-align: top; }
-
-        .btn-imprimir {
-            display: block;
-            width: 100%;
-            max-width: 300px;
-            margin: 10px auto;
-            padding: 10px;
-            background-color: #0d6efd;
-            color: #fff;
-            border: none;
-            border-radius: 5px;
-            font-weight: bold;
-            cursor: pointer;
-            font-family: Arial, sans-serif;
-        }
-
+        .text-center { text-align: center; }
+        .text-end { text-align: right; }
+        .fw-bold { font-weight: bold; }
+        .border-top { border-top: 1px dashed #000; }
+        .border-bottom { border-bottom: 1px dashed #000; }
+        .my-1 { margin-top: 4px; margin-bottom: 4px; }
+        .my-2 { margin-top: 8px; margin-bottom: 8px; }
+        .py-1 { padding-top: 4px; padding-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 2px 0; }
         @media print {
             .no-print { display: none !important; }
-            body { background: #fff; padding: 0; }
-            .ticket-card { border: none; box-shadow: none; width: 100%; max-width: 100%; padding: 0; }
         }
     </style>
 </head>
 <body>
 
-    <button onclick="window.print()" class="btn-imprimir no-print">🖨️ Imprimir Ticket</button>
+    <div class="text-center">
+        <h2 style="margin: 0; font-size: 15px; font-weight: 900;">REFACCIONARIA LOS PADDY'S</h2>
+        <div style="font-size: 10px;">Venta de Refacciones y Accesorios</div>
+        <div style="font-size: 9px;">Comprobante de Pago</div>
+    </div>
 
-    <div class="ticket-card">
-        <!-- Encabezado -->
-        <div class="text-center">
-            <h2 style="margin: 0; font-size: 15px; font-weight: bold;">REFACCIONARIA LOS PADDYS</h2>
-            <p style="margin: 3px 0;">Venta de Refacciones y Automotriz</p>
-            <p style="margin: 3px 0;">Tel: (55) 1234-5678</p>
-        </div>
+    <div class="border-top border-bottom my-1 py-1" style="font-size: 10px;">
+        <div><strong>FOLIO VENTA:</strong> #{{ venta.id }}</div>
+        <div><strong>FECHA:</strong> {{ venta.fecha_venta|date:"d/m/Y H:i" }}</div>
+        <div><strong>CAJERO:</strong> {{ venta.vendedor.username }}</div>
+        <div><strong>FORMA DE PAGO:</strong> {{ venta.metodo_pago|default:"EFECTIVO" }}</div>
+    </div>
 
-        <div class="linea"></div>
-
-        <!-- Info Venta -->
-        <div>
-            <strong>FOLIO VENTA: #{{ venta.id }}</strong><br>
-            Fecha: {{ venta.fecha_venta|date:"d/m/Y H:i" }}<br>
-            Atendido por: {{ venta.vendedor.get_full_name|default:venta.vendedor.username }}
-        </div>
-
-        <div class="linea"></div>
-
-        <!-- Tabla Productos -->
-        <table>
-            <thead>
-                <tr>
-                    <th>CANT</th>
-                    <th>PROD</th>
-                    <th class="text-right">P.U</th>
-                    <th class="text-right">TOTAL</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for det in venta.detalles.all %}
-                <tr>
-                    <td>{{ det.cantidad }}</td>
-                    <td>{{ det.producto.nombre|truncatechars:14 }}</td>
-                    <td class="text-right">${{ det.precio_unitario }}</td>
-                    <td class="text-right">${{ det.subtotal }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <div class="linea"></div>
-
-        <!-- Totales -->
-        <table>
-            <tr>
-                <td>Subtotal:</td>
-                <td class="text-right">${{ venta.subtotal }}</td>
+    <table>
+        <thead>
+            <tr class="border-bottom">
+                <th style="text-align: left;">CANT/REFACCIÓN</th>
+                <th style="text-align: right;">TOTAL</th>
             </tr>
-            {% if venta.descuento_aplicado > 0 %}
+        </thead>
+        <tbody>
+            {% for d in venta.detalles.all %}
             <tr>
-                <td>Descuento:</td>
-                <td class="text-right">
-                    {% if venta.descuento_aplicado <= 1 %}
-                        -{% widthratio venta.descuento_aplicado 1 100 %}%
-                    {% else %}
-                        -{{ venta.descuento_aplicado }}%
-                    {% endif %}
+                <td style="vertical-align: top;">
+                    <strong>{{ d.cantidad|floatformat:"-2" }}x</strong> {{ d.producto.nombre }}
+                    <br><span style="font-size: 9px; color: #333;">@ ${{ d.precio_unitario|floatformat:2 }}</span>
+                </td>
+                <td class="text-end" style="vertical-align: top; font-weight: bold;">
+                    ${{ d.subtotal|floatformat:2 }}
                 </td>
             </tr>
-            {% endif %}
-            <tr style="font-weight: bold; font-size: 13px;">
-                <td>TOTAL:</td>
-                <td class="text-right">${{ venta.total }}</td>
-            </tr>
-            <tr>
-                <td>Efectivo Recibido:</td>
-                <td class="text-right">${{ paga_con|default:venta.total }}</td>
-            </tr>
-            <tr>
-                <td>Cambio:</td>
-                <td class="text-right">${{ cambio|default:"0.00" }}</td>
-            </tr>
-        </table>
+            {% endfor %}
+        </tbody>
+    </table>
 
-        <div class="linea"></div>
-
-        <!-- Pie de página -->
-        <div class="text-center" style="margin-top: 10px;">
-            <p style="margin: 2px 0; font-weight: bold;">¡GRACIAS POR SU COMPRA!</p>
-            <p style="margin: 2px 0; font-size: 10px;">Conserve este ticket para cualquier aclaración o garantía.</p>
+    <div class="border-top my-1 pt-1">
+        <div style="display: flex; justify-content: space-between;">
+            <span>SUBTOTAL:</span>
+            <span>${{ venta.subtotal|floatformat:2 }}</span>
         </div>
+        {% if venta.descuento_aplicado > 0 %}
+        <div style="display: flex; justify-content: space-between; font-weight: bold;">
+            <span>DESCUENTO:</span>
+            <span>- ${{ venta.subtotal|floatformat:2 }}</span>
+        </div>
+        {% endif %}
+        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; margin-top: 4px;" class="border-top border-bottom py-1">
+            <span>TOTAL:</span>
+            <span>${{ venta.total|floatformat:2 }}</span>
+        </div>
+
+        {% if venta.metodo_pago == 'EFECTIVO' or not venta.metodo_pago %}
+        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+            <span>EFECTIVO RECIBIDO:</span>
+            <span>${{ paga_con|floatformat:2 }}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-weight: bold;">
+            <span>CAMBIO:</span>
+            <span>${{ cambio|floatformat:2 }}</span>
+        </div>
+        {% else %}
+        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+            <span>PAGO {{ venta.metodo_pago }}:</span>
+            <span>${{ venta.total|floatformat:2 }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="text-center my-2" style="font-size: 9px;">
+        *** GRACIAS POR SU COMPRA ***<br>
+        Conserve este comprobante para cualquier aclaración.
+    </div>
+
+    <div class="no-print text-center my-2">
+        <button onclick="window.print();" style="padding: 6px 14px; font-weight: bold; cursor: pointer;">Imprimir de nuevo</button>
+        <button onclick="window.close();" style="padding: 6px 14px; cursor: pointer;">Cerrar</button>
     </div>
 
     <script>
-        // Dispara el menú de impresión automáticamente al abrir el ticket
-        window.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
+        window.addEventListener('load', function() {
+            setTimeout(function() {
                 window.print();
-            }, 300);
+            }, 100);
         });
     </script>
 </body>

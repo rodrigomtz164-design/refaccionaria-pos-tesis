@@ -2,6 +2,19 @@
 
 {% block title %}Panel de Vendedor - POS Refaccionaria{% endblock %}
 
+{% block extra_css %}
+<style>
+    .card-link-hover {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        text-decoration: none;
+    }
+    .card-link-hover:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-2">
     <!-- Header principal -->
@@ -14,6 +27,7 @@
 
     <!-- TARJETAS DE MÉTRICAS DEL TURNO (KPIs) -->
     <div class="row g-3 mb-4">
+        <!-- Tarjeta 1: Cobrado Hoy -->
         <div class="col-12 col-md-4">
             <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
                 <div class="card-body p-3">
@@ -31,38 +45,56 @@
             </div>
         </div>
 
+        <!-- Tarjeta 2: Ventas / Notas Cobradas (Enlace a Historial de Ventas) -->
         <div class="col-12 col-md-4">
-            <div class="card border-0 shadow-sm border-start border-4 border-primary h-100">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <span class="text-muted fw-bold small text-uppercase">Ventas / Notas Cobradas</span>
-                            <h3 class="fw-bold text-dark mb-0 mt-1">{{ num_ventas_hoy|default:"0" }}</h3>
-                            <small class="text-primary fw-bold">Transacciones realizadas</small>
-                        </div>
-                        <div class="bg-primary-subtle p-3 rounded-circle text-primary">
-                            <i class="fa-solid fa-receipt fs-3"></i>
+            <a href="{% url 'lista_ventas' %}" class="card-link-hover d-block h-100">
+                <div class="card border-0 shadow-sm border-start border-4 border-primary h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <span class="text-muted fw-bold small text-uppercase">Ventas / Notas Cobradas</span>
+                                <h3 class="fw-bold text-dark mb-0 mt-1">{{ num_ventas_hoy|default:"0" }}</h3>
+                                <small class="text-primary fw-bold">
+                                    <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> Ver historial de ventas
+                                </small>
+                            </div>
+                            <div class="bg-primary-subtle p-3 rounded-circle text-primary">
+                                <i class="fa-solid fa-receipt fs-3"></i>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
 
+        <!-- Tarjeta 3: Cotizaciones de Hoy con Desglose (Enlace a Cotizaciones) -->
         <div class="col-12 col-md-4">
-            <div class="card border-0 shadow-sm border-start border-4 border-info h-100">
-                <div class="card-body p-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <span class="text-muted fw-bold small text-uppercase">Cotizaciones Emitidas</span>
-                            <h3 class="fw-bold text-dark mb-0 mt-1">{{ cotizaciones_vendedor|default:"0" }}</h3>
-                            <small class="text-info fw-bold">Presupuestos a clientes</small>
+            <a href="{% url 'lista_cotizaciones' %}" class="card-link-hover d-block h-100">
+                <div class="card border-0 shadow-sm border-start border-4 border-warning h-100">
+                    <div class="card-body p-3">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div>
+                                <span class="text-muted fw-bold small text-uppercase">Cotizaciones de Hoy</span>
+                                <h3 class="fw-bold text-dark mb-0 mt-1">{{ cotizaciones_vendedor_hoy }}</h3>
+                            </div>
+                            <div class="bg-warning-subtle p-3 rounded-circle text-warning">
+                                <i class="fa-solid fa-file-invoice-dollar fs-3"></i>
+                            </div>
                         </div>
-                        <div class="bg-info-subtle p-3 rounded-circle text-info">
-                            <i class="fa-solid fa-file-invoice-dollar fs-3"></i>
+                        <div class="d-flex gap-1 flex-wrap pt-2 border-top" style="font-size: 0.75rem;">
+                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning">
+                                {{ cotiz_vend_pendientes }} Vigentes
+                            </span>
+                            <span class="badge bg-success-subtle text-success border border-success">
+                                {{ cotiz_vend_convertidas }} Vendidas
+                            </span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger">
+                                {{ cotiz_vend_vencidas }} Vencidas
+                            </span>
                         </div>
                     </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
@@ -83,7 +115,7 @@
             </div>
         </div>
 
-        <!-- Acciones Directas Unificadas -->
+        <!-- Acciones Directas -->
         <div class="col-12 col-lg-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header bg-white py-3 border-0">
@@ -102,59 +134,17 @@
                         <i class="fa-solid fa-arrow-right"></i>
                     </a>
 
-                    <button class="btn btn-outline-danger py-3 fw-bold text-start d-flex align-items-center justify-content-between" data-bs-toggle="modal" data-bs-target="#modalCorteCaja">
-                        <span><i class="fa-solid fa-receipt fs-5 me-2"></i> Realizar Corte de Turno</span>
-                        <i class="fa-solid fa-print"></i>
-                    </button>
+                    <a href="{% url 'corte_caja' %}" class="btn btn-outline-danger py-3 fw-bold text-start d-flex align-items-center justify-content-between">
+                        <span><i class="fa-solid fa-calculator fs-5 me-2"></i> Realizar Corte de Turno</span>
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- MODAL PARA CORTE DE CAJA -->
-<div class="modal fade" id="modalCorteCaja" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-dark text-white">
-                <h5 class="modal-title fw-bold">
-                    <i class="fa-solid fa-calculator text-warning me-2"></i>Corte de Caja / Resumen de Turno
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4">
-                <div class="text-center mb-4">
-                    <span class="text-muted small text-uppercase">Cajero en Turno</span>
-                    <h5 class="fw-bold text-dark">{{ request.user.get_full_name|default:request.user.username }}</h5>
-                    <span class="badge bg-secondary">{{ request.user.rol.nombre|default:"Vendedor" }}</span>
-                </div>
-
-                <ul class="list-group list-group-flush border-top border-bottom mb-4">
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                        <span class="text-muted"><i class="fa-solid fa-receipt me-2 text-primary"></i>Total de Notas Procesadas</span>
-                        <span class="fw-bold fs-6">{{ num_ventas_hoy }}</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                        <span class="text-muted"><i class="fa-solid fa-file-invoice me-2 text-info"></i>Cotizaciones Realizadas</span>
-                        <span class="fw-bold fs-6">{{ cotizaciones_vendedor }}</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center py-3 bg-light">
-                        <span class="fw-bold text-dark"><i class="fa-solid fa-sack-dollar me-2 text-success"></i>TOTAL EN CAJA (EFECTIVO)</span>
-                        <span class="fw-bold fs-4 text-success">${{ total_monto_hoy|default:"0.00" }}</span>
-                    </li>
-                </ul>
-            </div>
-            <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-danger fw-bold" onclick="window.print()">
-                    <i class="fa-solid fa-print me-1"></i> Imprimir Reporte de Corte
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Script de dibujo ultra seguro -->
+<!-- Script de la Gráfica de Ventas del Turno -->
 <script>
 (function() {
     function initChart() {
@@ -174,7 +164,6 @@
             dataVentas = [0, 0, 0, 0, 0, 0];
         }
 
-        // Carga la librería Chart.js dinámicamente si no existe para asegurar 100% que cargue
         if (typeof Chart === 'undefined') {
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/chart.js';

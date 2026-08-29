@@ -13,8 +13,9 @@ urlpatterns = [
     path('dashboard/almacen/', views.dashboard_almacen, name='dashboard_almacen'),
     path('dashboard/ventas/', views.dashboard_ventas, name='dashboard_ventas'),
 
-    # Inventario / Tabla General
+    # Inventario / Tabla General y Categorías
     path('productos/', views.lista_productos, name='lista_productos'),
+    path('categorias/', views.gestion_categorias, name='gestion_categorias'),
     path('productos/editar/<int:producto_id>/', views.editar_producto, name='editar_producto'),
     path('productos/toggle-estado/<int:producto_id>/', views.toggle_estado_producto, name='toggle_estado_producto'),
 
@@ -40,6 +41,8 @@ urlpatterns = [
     path('cotizaciones/', views.lista_cotizaciones, name='lista_cotizaciones'),
     path('cotizaciones/imprimir/<int:cotizacion_id>/', views.generar_cotizacion_pdf, name='generar_cotizacion_pdf'),
     path('cotizaciones/cargar-pos/<int:cotizacion_id>/', views.cargar_cotizacion_pos, name='cargar_cotizacion_pos'),
+    path('cotizaciones/desactivar/<int:cotizacion_id>/', views.desactivar_cotizacion, name='desactivar_cotizacion'),
+    path('cotizaciones/eliminar/<int:cotizacion_id>/', views.eliminar_cotizacion, name='eliminar_cotizacion'),
 
     # Administración Interna y Descuentos Dinámicos
     path('usuarios/', views.lista_usuarios, name='lista_usuarios'),

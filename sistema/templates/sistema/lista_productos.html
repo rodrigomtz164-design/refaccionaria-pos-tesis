@@ -1,16 +1,23 @@
 {% extends 'sistema/base.html' %}
 
-{% block title %}Catálogo de Productos - Refaccionaria Los Paddys{% endblock %}
+{% block title %}Catálogo de Productos - Refaccionaria Los Paddy's{% endblock %}
 
 {% block content %}
 <div class="container-fluid p-0">
-    <!-- Header -->
-    <div class="d-flex align-items-center justify-content-between mb-3">
+    <!-- Header con Botón de Registro Rápido -->
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
         <div>
             <h2 class="h3 fw-bold mb-0 text-dark">
-                <i class="fa-solid fa-boxes-stacked text-primary me-2"></i>Catálogo de Refacciones
+                <i class="fa-solid fa-boxes-stacked text-danger me-2"></i>Catálogo de Refacciones
             </h2>
-            <p class="text-muted mb-0">Listado general de inventario, existencias, estado y compatibilidad.</p>
+            <p class="text-muted small mb-0">Listado general de inventario, existencias, estado y compatibilidad.</p>
+        </div>
+        <div>
+            {% if user.is_superuser or user.rol.nombre == 'Administrador' or user.rol.nombre == 'Almacenista' %}
+            <button type="button" class="btn btn-success fw-bold shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto" style="background: linear-gradient(135deg, #16a34a, #15803d); border: none;">
+                <i class="fa-solid fa-plus me-1"></i> Registrar Nueva Refacción
+            </button>
+            {% endif %}
         </div>
     </div>
 
@@ -28,7 +35,7 @@
 
                 <div class="col-12 col-sm-6 col-lg-3">
                     <label for="categoria" class="form-label fw-bold small text-muted text-uppercase">Categoría</label>
-                    <select name="categoria" id="categoria" class="form-select">
+                    <select name="categoria" id="categoria" class="form-select" onchange="this.form.submit()">
                         <option value="">Todas las categorías</option>
                         {% for cat in categorias %}
                             <option value="{{ cat.id }}" {% if categoria_id == cat.id|stringformat:"s" %}selected{% endif %}>
@@ -40,7 +47,7 @@
 
                 <div class="col-12 col-sm-6 col-lg-3">
                     <label for="marca" class="form-label fw-bold small text-muted text-uppercase">Marca de Auto</label>
-                    <select name="marca" id="marca" class="form-select">
+                    <select name="marca" id="marca" class="form-select" onchange="this.form.submit()">
                         <option value="">Todas las marcas</option>
                         {% for m in marcas %}
                             <option value="{{ m.id }}" {% if marca_id == m.id|stringformat:"s" %}selected{% endif %}>
@@ -51,7 +58,7 @@
                 </div>
 
                 <div class="col-12 col-lg-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm">
+                    <button type="submit" class="btn btn-danger w-100 fw-bold shadow-sm" style="background: #dc2626; border: none;">
                         <i class="fa-solid fa-filter me-1"></i> Filtrar
                     </button>
                 </div>
@@ -62,19 +69,19 @@
     <!-- Tabla General de Productos -->
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
-            <!-- ALTO FÍSICO CON SCROLL INTERNO: MANTIENE LA BARRA SIEMPRE A LA VISTA -->
-            <div style="max-height: 68vh; overflow-y: auto; overflow-x: auto; width: 100%;">
+            <!-- ALTO FÍSICO CON SCROLL INTERNO -->
+            <div style="max-height: 65vh; overflow-y: auto; overflow-x: auto; width: 100%;">
                 <table class="table table-hover align-middle mb-0" style="min-width: 1100px; width: 100%;">
-                    <thead class="table-light position-sticky top-0 shadow-sm" style="z-index: 10;">
-                        <tr class="small text-muted text-uppercase">
-                            <th class="ps-3" style="width: 120px;">SKU</th>
+                    <thead class="table-dark position-sticky top-0 shadow-sm" style="z-index: 10;">
+                        <tr class="small text-uppercase">
+                            <th class="ps-3" style="width: 130px;">SKU</th>
                             <th style="width: 240px;">Producto</th>
                             <th style="width: 120px;">Categoría</th>
                             <th style="width: 220px;">Compatibilidad</th>
-                            <th style="width: 110px;">Precio Venta</th>
-                            <th style="width: 120px;">Stock</th>
+                            <th class="text-end" style="width: 110px;">Precio Venta</th>
+                            <th style="width: 130px;">Stock</th>
                             <th class="text-center" style="width: 100px;">Estado</th>
-                            <th style="width: 90px;">Tipo</th>
+                            <th class="text-center" style="width: 90px;">Tipo</th>
                             
                             {% if user.is_superuser or user.rol.nombre == 'Administrador' or user.rol.nombre == 'Almacenista' %}
                             <th class="text-center pe-3" style="width: 130px;">Acciones</th>
@@ -84,7 +91,7 @@
                     <tbody>
                         {% for producto in productos %}
                         <tr id="fila-producto-{{ producto.id }}" class="{% if not producto.activo %}table-secondary text-muted opacity-75{% endif %}">
-                            <td class="ps-3 fw-bold text-dark">{{ producto.sku|default:"SIN SKU" }}</td>
+                            <td class="ps-3 fw-bold font-monospace text-dark">{{ producto.sku|default:"SIN SKU" }}</td>
                             <td style="white-space: normal;">
                                 <div class="fw-bold text-dark product-name">{{ producto.nombre }}</div>
                                 <small class="text-muted">{{ producto.descripcion|truncatechars:40|default:"" }}</small>
@@ -99,7 +106,7 @@
                                     <span class="text-muted small">Universal / Sin asignar</span>
                                 {% endfor %}
                             </td>
-                            <td class="fw-bold text-success" id="precio-txt-{{ producto.id }}">${{ producto.precio_venta }}</td>
+                            <td class="fw-bold text-success text-end fs-6" id="precio-txt-{{ producto.id }}">${{ producto.precio_venta|floatformat:2 }}</td>
                             <td id="stock-col-{{ producto.id }}">
                                 {% if producto.stock_actual <= producto.stock_minimo %}
                                     <span class="badge bg-danger" id="stock-badge-{{ producto.id }}">{{ producto.stock_actual }} {{ producto.unidad_medida }} (Bajo)</span>
@@ -115,7 +122,7 @@
                                     <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" id="badge-estado-{{ producto.id }}">Inactivo</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="text-center">
                                 {% if producto.es_granel %}
                                     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fa-solid fa-fill-drip me-1"></i>Granel</span>
                                 {% else %}
@@ -123,7 +130,7 @@
                                 {% endif %}
                             </td>
 
-                            <!-- Columna Acciones (Solo Admin y Almacenista) -->
+                            <!-- Columna Acciones -->
                             {% if user.is_superuser or user.rol.nombre == 'Administrador' or user.rol.nombre == 'Almacenista' %}
                             <td class="text-center pe-3">
                                 <div class="d-flex align-items-center justify-content-center gap-2">
@@ -154,8 +161,8 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="9" class="text-center py-4 text-muted">
-                                <i class="fa-solid fa-box-open fa-2x mb-2 d-block"></i>
+                            <td colspan="9" class="text-center py-5 text-muted">
+                                <i class="fa-solid fa-box-open fa-3x mb-2 d-block opacity-40"></i>
                                 No se encontraron productos con los filtros seleccionados.
                             </td>
                         </tr>
@@ -163,6 +170,96 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL PARA REGISTRO DE NUEVA REFACCIÓN -->
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fw-bold">
+                    <i class="fa-solid fa-boxes-packing text-warning me-2"></i>Alta de Nueva Refacción
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'lista_productos' %}">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <!-- Tipo de Venta -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Tipo de Venta</label>
+                            <select name="es_granel" id="select_es_granel" class="form-select fw-bold" onchange="actualizarUnidadMedida()">
+                                <option value="0">Pieza / Refacción Estándar</option>
+                                <option value="1">A Granel (Litros, Metros, Kilos)</option>
+                            </select>
+                        </div>
+
+                        <!-- Código / SKU -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase">SKU / Código</label>
+                            <div class="input-group">
+                                <input type="text" name="sku" id="input_sku" class="form-control fw-bold" placeholder="Ej: BAL-TSU-01" required>
+                                <button type="button" class="btn btn-outline-secondary" onclick="generarSKUAuto()" title="Generar Automático">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Auto
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Nombre -->
+                        <div class="col-12">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Nombre de la Refacción</label>
+                            <input type="text" name="nombre" class="form-control" placeholder="Ej: Balatas Delanteras Nissan D21" required>
+                        </div>
+
+                        <!-- Categoría -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Categoría</label>
+                            <select name="categoria" class="form-select" required>
+                                <option value="">-- Seleccionar Categoría --</option>
+                                {% for cat in categorias %}
+                                    <option value="{{ cat.id }}">{{ cat.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Unidad de Medida -->
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Unidad de Medida</label>
+                            <input type="text" name="unidad_medida" id="input_unidad" class="form-control" value="Pieza" required readonly>
+                        </div>
+
+                        <!-- Precio Venta -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Precio Venta ($)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-white fw-bold">$</span>
+                                <input type="number" step="0.01" name="precio_venta" class="form-control fw-bold text-success fs-5" placeholder="0.00" required>
+                            </div>
+                        </div>
+
+                        <!-- Stock Inicial -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Stock Inicial</label>
+                            <input type="number" step="0.01" name="stock_actual" class="form-control fw-bold" placeholder="0" required>
+                        </div>
+
+                        <!-- Stock Mínimo -->
+                        <div class="col-12 col-md-4">
+                            <label class="form-label fw-bold small text-muted text-uppercase">Stock Mínimo (Alerta)</label>
+                            <input type="number" step="0.01" name="stock_minimo" class="form-control" value="5" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success fw-bold px-4" style="background: linear-gradient(135deg, #16a34a, #15803d); border: none;">
+                        <i class="fa-solid fa-floppy-disk me-1"></i> Guardar en Inventario
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -182,7 +279,7 @@
                 <div class="mb-3">
                     <label class="form-label text-muted small fw-bold text-uppercase">Refacción</label>
                     <div class="fw-bold text-dark fs-6" id="edit_producto_nombre">-</div>
-                    <span class="badge bg-secondary" id="edit_producto_sku">-</span>
+                    <span class="badge bg-secondary font-monospace" id="edit_producto_sku">-</span>
                 </div>
                 <div class="row g-3">
                     <div class="col-6">
@@ -264,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 item.className = 'list-group-item list-group-item-action py-2 text-start small d-flex justify-content-between align-items-center';
                 item.innerHTML = `
                     <span>${p.nombre}</span>
-                    <span class="badge bg-dark ms-2">${p.sku}</span>
+                    <span class="badge bg-dark ms-2 font-monospace">${p.sku}</span>
                 `;
 
                 item.addEventListener('mousedown', function(e) {
@@ -285,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- LÓGICA TOGGLE ACTIVAR/DESACTIVAR PRODUCTO (SOFT DELETE) ---
+    // --- LÓGICA TOGGLE ACTIVAR/DESACTIVAR PRODUCTO ---
     document.querySelectorAll('.switch-toggle-estado').forEach(switchInput => {
         switchInput.addEventListener('change', function() {
             const prodId = this.dataset.id;
@@ -326,7 +423,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // --- LÓGICA DEL MODAL DE EDICIÓN EN TIEMPO REAL ---
+    // --- LÓGICA DEL MODAL DE EDICIÓN ---
     const modalElement = document.getElementById('modalEditarProducto');
     const modalEditar = new bootstrap.Modal(modalElement);
 
@@ -390,8 +487,6 @@ document.addEventListener('DOMContentLoaded', function() {
             btnGuardarEdicion.disabled = false;
             if (data.success) {
                 modalEditar.hide();
-                alert('¡Refacción actualizada en MySQL correctamente!');
-
                 const precioTxt = document.getElementById(`precio-txt-${prodId}`);
                 const stockBadge = document.getElementById(`stock-badge-${prodId}`);
 
@@ -417,5 +512,24 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Cambiar Unidad según si es a Granel
+function actualizarUnidadMedida() {
+    const esGranel = document.getElementById('select_es_granel').value;
+    const inputUnidad = document.getElementById('input_unidad');
+    if (esGranel === '1') {
+        inputUnidad.value = 'Litro/Metro/Kg';
+        inputUnidad.removeAttribute('readonly');
+    } else {
+        inputUnidad.value = 'Pieza';
+        inputUnidad.setAttribute('readonly', 'readonly');
+    }
+}
+
+// Generador automático de SKU
+function generarSKUAuto() {
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    document.getElementById('input_sku').value = 'REF-' + randomNum;
+}
 </script>
 {% endblock %}
